@@ -1,0 +1,23 @@
+{
+  "name": "automacao-whatsapp-onibus-rota-1",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automação de listas de transporte universitário, executada em celular Android com Termux.",
+  "main": "src/automation.cjs",
+  "scripts": {
+    "test": "node --test test/*.test.cjs socket/*.test.mjs",
+    "dry-run": "node src/automation.cjs --dry-run",
+    "auth": "bash socket/run.sh",
+    "verify": "bash socket/run.sh --verify",
+    "scheduled": "node scheduler.cjs --once"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "1.34.7"
+  },
+  "overrides": {
+    "puppeteer": "25.9.0"
+  }
+}

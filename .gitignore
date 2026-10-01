@@ -1,0 +1,22 @@
+# Arquivos locais
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+!.env.example
+
+node_modules/
+**/node_modules/
+config.json
+runtime/
+**/runtime/
+auth/
+**/auth/
+data/
+backups/
+staging/
+.wwebjs_auth/
+.wwebjs_cache/
+*.pem
+*.key

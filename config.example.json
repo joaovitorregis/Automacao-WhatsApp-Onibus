@@ -1,0 +1,21 @@
+{
+  "sendingEnabled": false,
+  "timezone": "America/Fortaleza",
+  "productionGroup": "Grupo Exemplo da Rota",
+  "testGroup": "Grupo Exemplo de Testes",
+  "studentLines": [
+    "1. Participante Exemplo - Instituição Exemplo"
+  ],
+  "pausedDates": [],
+  "schedule": {
+    "weekdays": [
+      "Mon",
+      "Tue",
+      "Thu",
+      "Fri"
+    ],
+    "hour": 2,
+    "minute": 0,
+    "graceMinutes": 20
+  }
+}
