@@ -21,4 +21,4 @@ Não execute agendadores concorrentes no Windows e no celular. Não apague o est
 
 ## Registro histórico
 
-Na documentação privada original, o envio agendado de 25/09/2026 foi confirmado pelo ACK do servidor. Os registros privados não são publicados porque contêm identificadores da operação. Os testes desta cópia pública serão registrados em `VALIDACAO.md`.
+O envio agendado de 25/09/2026 foi confirmado pelo ACK do servidor do WhatsApp. Os registros completos ficam fora do repositório porque contêm identificadores da operação.

@@ -1,12 +1,14 @@
 # Automação WhatsApp · Ônibus universitário
 
-Automação desenvolvida por **João Vitor Regis** para preparar e enviar a lista diária do transporte universitário em um grupo de WhatsApp, conforme dias e horário configurados.
+Criei este projeto para automatizar uma tarefa recorrente: publicar a lista diária do ônibus universitário no grupo de WhatsApp. A automação monta a mensagem com a data e os participantes e faz o envio nos dias e horários configurados.
+
+**Autor:** João Vitor Regis.
 
 ## Um celular como servidor
 
 O projeto foi implantado em um **Samsung Galaxy A10s com Termux**, usando o próprio celular como servidor. Node.js executa o agendador e o conector do WhatsApp; o notebook foi utilizado para desenvolvimento e manutenção.
 
-A documentação operacional original registra um envio agendado confirmado pelo servidor do WhatsApp em **25/09/2026, às 02:00, no fuso America/Fortaleza**. Esse registro descreve a execução observada naquela data, não uma verificação de disponibilidade atual ou permanente.
+A execução no celular teve um envio agendado confirmado em **25/09/2026, às 02:00**, no fuso America/Fortaleza.
 
 ## O que o código faz
 
@@ -21,9 +23,9 @@ ACK confirma aceitação pelo servidor; não significa leitura pelos integrantes
 
 ## Tecnologias
 
-JavaScript · Node.js · Termux · Baileys · runit · testes nativos do Node.js. O código também preserva componentes da adaptação anterior por navegador com whatsapp-web.js; o conector de operação no Android fica em `socket/`.
+JavaScript · Node.js · Termux · Baileys · runit. O código também preserva componentes da adaptação anterior por navegador com whatsapp-web.js; o conector de operação no Android fica em `socket/`.
 
-## Começar com segurança
+## Como configurar
 
 ```sh
 # Na raiz do projeto
@@ -32,11 +34,10 @@ cd socket
 npm ci --ignore-scripts
 cd ..
 cp config.example.json config.json
-npm test
 npm run dry-run
 ```
 
-O exemplo contém participantes e grupos fictícios e mantém `sendingEnabled: false`. Os testes usam clientes simulados e arquivos temporários; não precisam da sessão real nem enviam mensagens.
+O exemplo contém participantes e grupos fictícios e mantém `sendingEnabled: false`. O comando `dry-run` mostra a mensagem que seria gerada, sem enviá-la.
 
 Para implantar no Termux, veja [o guia do servidor Android](docs/servidor-android.md). Autenticação e habilitação de envio são etapas manuais na sua própria instalação.
 
@@ -54,6 +55,6 @@ docs/                 instalação e limites de operação
 
 ## Limites
 
-O Android pode encerrar o Termux; rede, energia e permissões de execução em segundo plano afetam a operação. A sobrevivência a reinicialização física não foi comprovada na documentação consultada. A integração usa bibliotecas de terceiros e pode exigir manutenção quando o WhatsApp muda.
+O celular precisa de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo, e a retomada após uma reinicialização ainda precisa ser verificada. A integração pode exigir manutenção quando o WhatsApp muda.
 
-Esta publicação não inclui credenciais, QR codes, sessões, números reais, logs operacionais ou a lista original. A instalação em uso no celular não foi alterada para preparar o repositório.
+A configuração pessoal, a sessão do WhatsApp e os registros de operação ficam fora do repositório. Para usar o projeto, configure seus próprios grupos e participantes e vincule sua conta no celular.
