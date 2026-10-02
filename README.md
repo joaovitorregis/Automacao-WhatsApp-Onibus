@@ -1,6 +1,6 @@
 # Automação WhatsApp · Ônibus universitário
 
-Criei este projeto para automatizar uma tarefa recorrente: publicar a lista diária do ônibus universitário no grupo de WhatsApp. A automação monta a mensagem com a data e os participantes e faz o envio nos dias e horários configurados.
+Automação da publicação da lista diária do ônibus universitário em um grupo de WhatsApp. O sistema monta a mensagem com a data e os participantes e faz o envio nos dias e horários configurados.
 
 **Autor:** João Vitor Regis.
 
@@ -39,7 +39,7 @@ npm run dry-run
 
 O exemplo contém participantes e grupos fictícios e mantém `sendingEnabled: false`. O comando `dry-run` mostra a mensagem que seria gerada, sem enviá-la.
 
-Para implantar no Termux, veja [o guia do servidor Android](docs/servidor-android.md). Autenticação e habilitação de envio são etapas manuais na sua própria instalação.
+A instalação no Termux está documentada no [guia do servidor Android](docs/servidor-android.md). A autenticação e a habilitação de envio são etapas manuais da instalação.
 
 ## Estrutura
 
@@ -55,6 +55,6 @@ docs/                 instalação e limites de operação
 
 ## Limites
 
-O celular precisa de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo, e a retomada após uma reinicialização ainda precisa ser verificada. A integração pode exigir manutenção quando o WhatsApp muda.
+O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. A retomada automática após reinicialização não está documentada como validada. A integração depende da compatibilidade do conector com o WhatsApp.
 
-A configuração pessoal, a sessão do WhatsApp e os registros de operação ficam fora do repositório. Para usar o projeto, configure seus próprios grupos e participantes e vincule sua conta no celular.
+A configuração pessoal, a sessão do WhatsApp e os registros de operação ficam fora do repositório. Cada instalação requer a configuração dos grupos e participantes e a vinculação de uma conta do WhatsApp.
