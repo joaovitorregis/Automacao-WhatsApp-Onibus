@@ -58,3 +58,10 @@ docs/                 instalação e limites de operação
 O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. Não há registro de validação da retomada automática após reinicialização. A integração depende da compatibilidade do conector com o WhatsApp.
 
 A configuração pessoal, a sessão do WhatsApp e os registros de operação ficam fora do repositório. Cada instalação requer a configuração dos grupos e participantes e a vinculação de uma conta do WhatsApp.
+
+## Licenças
+
+- Código, scripts, testes e configuração de exemplo: [MIT](LICENSE).
+- README e documentação em `docs/`: [CC BY 4.0](LICENSE-MATERIALS), com atribuição a João Vitor Regis.
+
+As dependências conservam suas próprias licenças.

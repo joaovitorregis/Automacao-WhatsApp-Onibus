@@ -19,5 +19,6 @@
   },
   "overrides": {
     "puppeteer": "25.9.0"
-  }
+  },
+  "license": "MIT"
 }
