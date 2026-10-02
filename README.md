@@ -2,13 +2,13 @@
 
 Automação da publicação da lista diária do ônibus universitário em um grupo de WhatsApp. O sistema monta a mensagem com a data e os participantes e faz o envio nos dias e horários configurados.
 
-**Autor:** João Vitor Regis.
+Autor: João Vitor Regis.
 
 ## Um celular como servidor
 
-O projeto foi implantado em um **Samsung Galaxy A10s com Termux**, usando o próprio celular como servidor. Node.js executa o agendador e o conector do WhatsApp; o notebook foi utilizado para desenvolvimento e manutenção.
+O projeto foi implantado em um Samsung Galaxy A10s com Termux, usando o celular como servidor. Node.js executa o agendador e o conector do WhatsApp; o notebook foi utilizado para desenvolvimento e manutenção.
 
-A execução no celular teve um envio agendado confirmado em **25/09/2026, às 02:00**, no fuso America/Fortaleza.
+A execução no celular teve um envio agendado confirmado em 25/09/2026, às 02:00, no fuso America/Fortaleza.
 
 ## O que o código faz
 
@@ -55,6 +55,6 @@ docs/                 instalação e limites de operação
 
 ## Limites
 
-O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. A retomada automática após reinicialização não está documentada como validada. A integração depende da compatibilidade do conector com o WhatsApp.
+O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. Não há registro de validação da retomada automática após reinicialização. A integração depende da compatibilidade do conector com o WhatsApp.
 
 A configuração pessoal, a sessão do WhatsApp e os registros de operação ficam fora do repositório. Cada instalação requer a configuração dos grupos e participantes e a vinculação de uma conta do WhatsApp.

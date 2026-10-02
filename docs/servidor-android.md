@@ -11,7 +11,7 @@ Galaxy A10s → Termux → Node.js/agendador → conector Baileys → WhatsApp. 
 3. Copie `config.example.json` para `config.json`. Ajuste participantes, grupos e agenda, mantendo `sendingEnabled: false` durante a preparação.
 4. Rode os testes e `npm run dry-run`. Crie `runtime/` e inicialize **somente em instalação nova** um estado `state.json` com `{"version":1,"deliveries":{}}`. Nunca substitua ou apague o estado de uma instalação em uso.
 5. Vincule sua própria conta manualmente com `bash socket/run.sh`; o QR temporário fica em `socket/runtime/login.png`. Não publique essa imagem nem os arquivos de autenticação.
-6. Confirme os grupos com `bash socket/run.sh --verify`, sem envio. Após revisar o destino e o horário, habilite conscientemente sua instalação com `node service.cjs enable`.
+6. Confirme os grupos com `bash socket/run.sh --verify`, sem envio. Após revisar o destino e o horário, habilite o envio com `node service.cjs enable`.
 
 ## Operação
 
