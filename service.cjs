@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
+const { executorHealthy, supervisorPid } = require('./src/health.cjs');
 const root = __dirname;
 const action = process.argv[2] || 'status';
 const configPath = path.join(root, 'config.json');
@@ -62,6 +63,8 @@ function setEnabled(value) {
   const heartbeat = fs.existsSync(heartbeatFile) ? JSON.parse(fs.readFileSync(heartbeatFile, 'utf8')) : null;
   const schedulerRunning = running();
   const heartbeatAgeSeconds = heartbeat ? Math.round((Date.now() - Date.parse(heartbeat.timestamp)) / 1000) : null;
-  const healthy = schedulerRunning && Number.isFinite(heartbeatAgeSeconds) && heartbeatAgeSeconds >= 0 && heartbeatAgeSeconds < 240 && supervision.status === 0;
+  const pid = schedulerRunning ? Number(fs.readFileSync(lock, 'utf8')) : null;
+  const supervisionPid = supervisorPid(supervision.stdout);
+  const healthy = executorHealthy({schedulerRunning,pid,heartbeat,supervisionStatus:supervision.status,supervisionPid});
   console.log(JSON.stringify({ sendingEnabled: JSON.parse(fs.readFileSync(configPath, 'utf8')).sendingEnabled, schedulerRunning, healthy, heartbeatAgeSeconds, supervisor: supervision.stdout?.trim() || 'unavailable', heartbeat }));
 })().catch(e => { console.error(e.message); process.exitCode = 1; });
