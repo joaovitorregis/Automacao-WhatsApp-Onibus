@@ -26,6 +26,8 @@ h1, h2, h3 { font-weight: 650; }
 h1 { font-size: 30px; line-height: 1.2; letter-spacing: -.8px; margin-bottom: 8px; }
 h2 { font-size: 20px; line-height: 1.35; letter-spacing: -.35px; margin-bottom: 12px; }
 h3 { font-size: 15px; margin-bottom: 8px; }
+.page-heading { font-size: 26px; margin-bottom: 16px; }
+#wa-status { font-size: 12px; background: var(--fog); border-radius: 6px; padding: 7px 10px; }
 p { line-height: 1.65; max-width: 76ch; }
 small, .muted { color: var(--muted); line-height: 1.6; }
 .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .65px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
@@ -173,6 +175,7 @@ dialog label { margin-bottom: 18px; }
   main { padding-inline: 16px; }
   .sidebar { padding-inline: 16px; }
   h1 { font-size: 26px; }
+  .page-heading { font-size: 22px; }
   .title-row { align-items: flex-start; gap: 12px; }
   .title-row > button { flex-shrink: 0; }
   .private-tag { font-size: 10px; }
