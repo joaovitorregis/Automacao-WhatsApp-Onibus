@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([ValidateSet('Open','Install','Status','Access')][string]$Action='Open')
+param([ValidateSet('Open','Install','Status','Access','Doctor')][string]$Action='Open')
 $ErrorActionPreference='Stop'
 $panelKeyTask=$env:ROTA_SSH_KEY
 $panelRemoteTask=$env:ROTA_SSH_TARGET
@@ -16,6 +16,7 @@ function Get-PanelAccess {
 if($Action -eq 'Open'){if(-not $env:ROTA_PANEL_URL){throw 'Configure ROTA_PANEL_URL.'};Start-Process $env:ROTA_PANEL_URL;return}
 if(-not $panelKeyTask -or -not $panelRemoteTask){throw 'Configure ROTA_SSH_KEY e ROTA_SSH_TARGET.'}
 if($Action -eq 'Access'){Get-PanelAccess;return}
+if($Action -eq 'Doctor'){Invoke-PanelRemote "cd '$panelRootTask' && node scripts/doctor.cjs --json";return}
 if($Action -eq 'Status'){Invoke-PanelRemote "cd '$panelRootTask' && sv status '$panelRootTask/runtime/services/rota-panel' && node service.cjs status";return}
 & node --test (Join-Path $PSScriptRoot 'test/panel.test.cjs')
 if($LASTEXITCODE -ne 0){throw 'Testes locais falharam; servidor preservado.'}

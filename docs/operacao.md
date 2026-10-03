@@ -7,9 +7,18 @@ O celular executa a automação. O notebook mantém o código e acessa o painel 
 No Termux, na raiz da instalação:
 
 ```sh
+cd ~/whatsapp-onibus-rota-1-android
 npm run doctor
 node service.cjs status
 ```
+
+Os caminhos dos scripts são relativos à raiz do projeto, não à pasta inicial do Termux. Para executar de qualquer pasta, use `node ~/whatsapp-onibus-rota-1-android/scripts/doctor.cjs`. No notebook, `painel.ps1 -Action Doctor` faz essa consulta por SSH no diretório correto.
+
+## Armazenamento compartilhado do Android
+
+O atalho padrão do Termux é `~/storage/shared`, apontando para o armazenamento interno compartilhado. Para abrir a pasta de downloads no terminal, use `cd ~/storage/shared/Download`. Isso não configura acesso pelo Explorador do Windows: esse acesso depende do aplicativo ou protocolo de compartilhamento instalado.
+
+Se o próprio Termux receber “Permission denied”, confira a permissão de arquivos nas configurações do Android e execute `termux-setup-storage` no celular, confirmando a solicitação exibida. Não redefina permissões se o diretório já for legível. Mantenha sessão WhatsApp, configuração pessoal e backups sensíveis no diretório privado do Termux, não no armazenamento compartilhado.
 
 Para integrar a consulta em outra ferramenta: `npm run doctor -- --json`. Para uma pasta diferente: `node scripts/doctor.cjs --root /caminho/da/instalacao --json`.
 

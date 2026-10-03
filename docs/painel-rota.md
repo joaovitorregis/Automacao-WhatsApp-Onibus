@@ -20,6 +20,7 @@ $env:ROTA_SSH_TARGET = 'usuario-termux@ip-privado-do-servidor'
 $env:ROTA_PANEL_URL = 'http://ip-privado-do-servidor:8787'
 .\painel.ps1 -Action Install
 .\painel.ps1 -Action Status
+.\painel.ps1 -Action Doctor
 .\painel.ps1 -Action Access
 .\painel.ps1 -Action Open
 ```
