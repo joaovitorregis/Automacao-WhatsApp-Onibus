@@ -170,8 +170,9 @@ async function uiFixture() {
   const weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(value=>({...node(),value}));
   const state={config:JSON.parse(JSON.stringify(base)),offline:false};
   const data=()=>({config:JSON.parse(JSON.stringify(state.config)),revision:model.revision(state.config),health:{healthy:true,heartbeatAgeSeconds:1},history:[],preview:'fixture',nextRun:null,now:new Date().toISOString()});
-  const context={document:{getElementById:el,createElement:node,createTextNode:text=>({textContent:text}),querySelectorAll:selector=>selector==='.day-picker input'?weekdays:selector==='.day-picker input:checked'?weekdays.filter(x=>x.checked):selector.startsWith('#app-view button')?['toggle-enabled','wa-check','wa-pair','wa-disable','wa-production','wa-test','wa-save-production','wa-save-test','test-open'].map(el):[]},window:{addEventListener(){},confirm:()=>true},Intl,Date,FormData:class{},setTimeout:()=>0,clearTimeout(){},console,
+  const context={document:{getElementById:el,createElement:node,createTextNode:text=>({textContent:text}),querySelectorAll:selector=>selector==='.day-picker input'?weekdays:selector==='.day-picker input:checked'?weekdays.filter(x=>x.checked):selector.startsWith('#app-view button')?['toggle-enabled','wa-check','wa-pair','wa-disable','wa-production','wa-test','wa-save-production','wa-save-test','test-open'].map(el):[]},window:{addEventListener(){},confirm:()=>true},Intl,Date,TypeError,FormData:class{},setTimeout:()=>0,clearTimeout(){},console,
     fetch:async(url,options)=>{
+      if(state.networkFailure) throw new TypeError('Failed to fetch');
       if(state.offline)throw Error('fixture offline');
       let result={csrf:'fixture-csrf'},status=200;
       if(url==='/api/dashboard')result=data();
@@ -229,6 +230,24 @@ test('empty group selectors explain verification and block selection',async()=>{
   assert.equal(f.el('wa-disable').hidden,false);
 });
 
+test('account verification blocks activation and testing until completion',async()=>{
+  const f=await uiFixture();
+  vm.runInContext("renderWhatsApp({status:'checking',active:true,groups:[]})",f.context);
+  assert.equal(f.el('toggle-enabled').disabled,true);assert.equal(f.el('test-open').disabled,true);
+  vm.runInContext("renderWhatsApp({status:'verified',active:false,groups:[]})",f.context);
+  assert.equal(f.el('toggle-enabled').disabled,false);assert.equal(f.el('test-open').disabled,false);
+});
+
+test('group confirmation identifies exact name and ID before mutation',async()=>{
+  const f=await uiFixture();let confirmation;
+  f.context.window.confirm=text=>{confirmation=text;return false;};
+  vm.runInContext("renderWhatsApp({status:'verified',active:false,groups:[{id:'12345@g.us',name:'Fixture selected'}]})",f.context);
+  f.el('wa-production').value='12345@g.us';
+  await f.el('wa-save-production').onclick();
+  assert.match(confirmation,/Fixture selected/);assert.match(confirmation,/12345@g.us/);
+  assert.equal(f.state.config.productionGroup,base.productionGroup);
+});
+
 test('history explains uncertainty, interrupted attempts and confirmation limits',async()=>{
   const f=await uiFixture();
   const explain=status=>vm.runInContext('deliveryExplanation('+JSON.stringify(status)+')',f.context);
@@ -260,6 +279,15 @@ test('offline controls block operations, preserve edits and recover on refresh',
   f.state.offline=false;await f.refresh();
   assert.equal(f.el('test-open').disabled,false);
   assert.equal(f.el('student-lines').value,'1. Unsaved offline');
+});
+
+test('native fetch failure is explained locally without claiming current health',async()=>{
+  const f=await uiFixture();f.state.networkFailure=true;await f.el('refresh').onclick();
+  assert.match(f.el('toast').textContent,/Sem comunicação/);
+  assert.equal(f.el('health-label').textContent,'Sem consulta atual');
+  assert.equal(f.el('test-open').disabled,true);
+  f.state.networkFailure=false;await f.refresh();
+  assert.equal(f.el('health-label').textContent,'Saudável');
 });
 
 test('offline enable action does not reenable a control with stale state',async()=>{

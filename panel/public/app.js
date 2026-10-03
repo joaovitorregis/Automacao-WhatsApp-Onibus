@@ -12,7 +12,7 @@ function deliveryExplanation(status) {
   return 'Estado não reconhecido. Este registro não comprova entrega.';
 }
 function toast(message, error = false) { $('toast').textContent = message; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 6500); }
-let waTimer,qrExpiry;
+let waTimer,qrExpiry,waGroups=[],sendingTest=false;
 let panelOnline=true;
 const offlineControls=new Map();
 function connectionState(online) {
@@ -21,6 +21,9 @@ function connectionState(online) {
   if(!online) {
     for(const control of controls) { if(!offlineControls.has(control)) offlineControls.set(control,control.disabled); control.disabled=true; }
     $('wa-status').textContent='Sem consulta atual';
+    $('health-label').textContent='Sem consulta atual';
+    $('health-label').classList.toggle('attention',true);
+    $('health-detail').textContent='O último estado conhecido não comprova a situação atual do executor.';
     $('wa-guidance').textContent='Sem comunicação com o servidor. Os destinos exibidos podem estar desatualizados. Reconecte e atualize o painel.';
   } else {
     for(const [control,disabled] of offlineControls) control.disabled=disabled;
@@ -29,7 +32,9 @@ function connectionState(online) {
 }
 function loggedIn(value) { $('login-view').hidden = value; $('app-view').hidden = !value; if (!value) { csrf = ''; clearTimeout(pollTimer); clearTimeout(waTimer); clearTimeout(qrExpiry); $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); } }
 async function api(url, method = 'GET', body) {
-  const res = await fetch('/api/' + url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  let res;
+  try { res = await fetch('/api/' + url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
+  catch(error) { if(error instanceof TypeError) throw Error('Sem comunicação com o servidor. Confira a conexão e atualize o painel.'); throw error; }
   const result = await res.json();
   if (!res.ok) { if (res.status === 401 && url !== 'login') loggedIn(false); throw Error(result.error || 'O servidor não respondeu.'); }
   return result;
@@ -50,7 +55,7 @@ function render(d, fillForms = false) {
   $('next-label').textContent = d.nextRun ? fmt(d.nextRun) : 'Sem previsão';
   const dayNames = { Mon: 'Seg', Tue: 'Ter', Wed: 'Qua', Thu: 'Qui', Fri: 'Sex', Sat: 'Sáb', Sun: 'Dom' };
   $('schedule-summary').textContent = c.schedule.weekdays.map(day => dayNames[day]).join(' / ') + ' — ' + String(c.schedule.hour).padStart(2,'0') + ':' + String(c.schedule.minute).padStart(2,'0');
-  $('toggle-enabled').disabled = false; $('toggle-enabled').textContent = c.sendingEnabled ? 'Desativar envios automáticos' : 'Ativar envios automáticos';
+  $('toggle-enabled').disabled = !!d.whatsapp?.active; $('toggle-enabled').textContent = c.sendingEnabled ? 'Desativar envios automáticos' : 'Ativar envios automáticos';
   $('message-preview').textContent = d.preview; $('destination').textContent = c.productionGroup;
   $('connection-warning').hidden = h.healthy; $('connection-warning').textContent = 'O executor precisa de atenção. Não trate o agendamento ativo como garantia de envio.';
   const formKeys = ['studentLines', 'schedule'];
@@ -78,7 +83,7 @@ function render(d, fillForms = false) {
     const row = document.createElement('tr');
     const cell = value => { const td = document.createElement('td'); td.textContent = value || '—'; row.append(td); return td; };
     cell(fmt(record.timestamp)); const group = cell(record.group); if (record.test) { const tag = document.createElement('small'); tag.textContent = 'ENVIO DE TESTE'; group.append(tag); }
-    const result = cell(''); result.textContent = ''; const badge = document.createElement('span'); badge.className = 'result' + (['uncertain','attempting'].includes(record.status) ? ' warn' : record.status === 'not_started' ? ' bad' : ''); badge.textContent = statuses[record.status] || record.status || 'Desconhecido'; result.append(badge);
+    const result = cell(''); result.textContent = ''; const badge = document.createElement('span'); badge.className = 'result' + (!['sent','server_accepted','not_started'].includes(record.status) ? ' warn' : record.status === 'not_started' ? ' bad' : ''); badge.textContent = statuses[record.status] || 'Estado desconhecido'; result.append(badge);
     const explanation=document.createElement('small');explanation.textContent=deliveryExplanation(record.status);result.append(explanation);
     if (record.error) { const error = document.createElement('small'); error.textContent = 'Motivo registrado: '+record.error; result.append(error); }
     const confirmation = cell(fmt(record.confirmedAt)); if (record.messageId) { const id = document.createElement('small'); id.textContent = 'ID ' + record.messageId; confirmation.append(id); }
@@ -93,8 +98,13 @@ async function refresh(fillForms = false) {
   finally { if (csrf) pollTimer = setTimeout(() => refresh().catch(() => {}), 30000); }
 }
 function renderWhatsApp(state) {
+  waGroups=state.groups || [];
   const enabled=dashboard?.config.sendingEnabled!==false, active=!!state.active;
   const groups=state.groups || [];
+  $('toggle-enabled').disabled=!panelOnline || active;
+  $('toggle-enabled').title=active ? 'Aguarde a verificação da conta terminar.' : '';
+  $('test-open').disabled=!panelOnline || active || sendingTest;
+  $('test-open').title=active ? 'Aguarde a verificação da conta terminar.' : '';
   $('wa-check').disabled=enabled || active;
   $('wa-pair').disabled=enabled || active;
   $('wa-disable').hidden=!enabled;
@@ -142,21 +152,23 @@ for(const [button,select,field] of [['wa-save-production','wa-production','produ
   $(button).onclick=()=>action(async()=>{
     if(dirty) throw Error('Salve ou descarte as alterações do formulário antes de selecionar o grupo.');
     const id=$(select).value;if(!id) throw Error('Selecione um grupo.');
-    if(!window.confirm('Confirmar este grupo como destino '+(field==='productionGroup'?'principal':'de teste')+'?')) return;
-    await api('whatsapp/group','POST',{id,field,revision:dashboard.revision});await refresh(true);toast('Grupo selecionado.');
+    const group=waGroups.find(group=>group.id===id);
+    if(!group) throw Error('Verifique a conta novamente para atualizar os grupos.');
+    if(!window.confirm('Definir “'+group.name+'” ('+group.id+') como destino '+(field==='productionGroup'?'principal':'de teste')+'?')) return;
+    await api('whatsapp/group','POST',{id,field,revision:dashboard.revision});await refresh();toast('Grupo selecionado.');
   });
 }
 async function save(changes, revision = dashboard.revision) { await api('config', 'PUT', { revision, changes }); await refresh(); }
 $('login-form').onsubmit = async event => { event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true; $('login-error').textContent = ''; try { const r = await api('login','POST',{ password: new FormData(event.target).get('password') }); csrf = r.csrf; event.target.reset(); dirty = false; loggedIn(true); await refresh(true); await pollWhatsApp(); } catch(error) { $('login-error').textContent = error.message; } finally { button.disabled = false; } };
 $('refresh').onclick = () => action(async () => { await refresh(); await pollWhatsApp(); toast('Estado atualizado.'); });
 $('logout').onclick = () => action(async () => { await api('logout','POST',{}); loggedIn(false); });
-$('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = !$('connection-warning').hidden; } });
+$('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = !panelOnline || !!dashboard.whatsapp?.active; } });
 $('settings-form').oninput = () => { dirty = true; editGeneration++; };
 $('form-reload').onclick = () => action(async () => { if (!window.confirm('Descartar as alterações não salvas e carregar os campos atuais do servidor?')) return; await refresh(true); dirty = false; toast('Campos atuais carregados.'); });
 $('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const generation=editGeneration; const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); if(editGeneration===generation) { dirty = false; render(dashboard,true); toast('Agendamento e mensagem salvos.'); } else { formConfig=JSON.parse(JSON.stringify(dashboard.config)); formRevision=dashboard.revision; $('form-conflict').hidden=true; toast('Alterações enviadas foram salvas. Sua edição posterior permanece no formulário e ainda precisa ser salva.'); } }); };
 $('pause-form').onsubmit = event => { event.preventDefault(); action(async () => { await save({ pausedDates: [...dashboard.config.pausedDates, $('pause-date').value] }); event.target.reset(); toast('Data pausada.'); }); };
 $('test-open').onclick = () => action(async () => { const p = await api('test/prepare','POST',{}); challenge = p.challenge; $('confirm-group').textContent = p.group+(p.groupId?' ('+p.groupId+')':' (seleção por nome)'); $('confirm-text').textContent = p.text; $('test-confirm').disabled = false; $('test-dialog').showModal(); });
-$('test-confirm').onclick = () => action(async () => { $('test-confirm').disabled = true; try { const job = await api('test/send','POST',{challenge}); $('test-dialog').close(); $('test-open').disabled = true; $('test-status').textContent = 'Teste em andamento. Aguarde a confirmação; não repita o comando.'; const deadline = Date.now() + 150000; while (Date.now() < deadline && csrf) { await new Promise(r => setTimeout(r, 2500)); const result = await api('test/' + job.id); if (result.status !== 'running') { const ok = ['sent','server_accepted'].includes(result.status); $('test-status').textContent = ok ? 'Confirmado pelo servidor do WhatsApp.' : (result.error || 'Resultado incerto. Confira o WhatsApp antes de repetir.'); toast($('test-status').textContent, !ok); await refresh(); return; } } $('test-status').textContent = 'Ainda sem resultado conclusivo. Confira o histórico antes de repetir.'; } finally { $('test-open').disabled = false; $('test-confirm').disabled = false; } });
+$('test-confirm').onclick = () => action(async () => { sendingTest=true; $('test-confirm').disabled = true; try { const job = await api('test/send','POST',{challenge}); $('test-dialog').close(); $('test-open').disabled = true; $('test-status').textContent = 'Teste em andamento. Aguarde a confirmação; não repita o comando.'; const deadline = Date.now() + 150000; while (Date.now() < deadline && csrf) { await new Promise(r => setTimeout(r, 2500)); const result = await api('test/' + job.id); if (result.status !== 'running') { const ok = ['sent','server_accepted'].includes(result.status); $('test-status').textContent = ok ? 'Confirmado pelo servidor do WhatsApp.' : (result.error || 'Resultado incerto. Confira o WhatsApp antes de repetir.'); toast($('test-status').textContent, !ok); await refresh(); return; } } $('test-status').textContent = 'Ainda sem resultado conclusivo. Confira o histórico antes de repetir.'; } finally { sendingTest=false; $('test-open').disabled = !panelOnline || !!dashboard.whatsapp?.active; $('test-confirm').disabled = false; } });
 $('password-open').onclick = () => $('password-dialog').showModal();
 $('password-form').onsubmit = event => { event.preventDefault(); action(async () => { await api('password','POST',Object.fromEntries(new FormData(event.target))); event.target.reset(); $('password-dialog').close(); loggedIn(false); toast('Senha alterada. Entre novamente.'); }); };
 document.querySelectorAll('.nav-link').forEach(a => a.onclick = () => { document.querySelectorAll('.nav-link').forEach(x => x.classList.toggle('active', x === a)); });

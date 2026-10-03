@@ -4,10 +4,10 @@
 
 | Prioridade | Critério | Evidência e pendências |
 | --- | --- | --- |
-| Estados da interface | Ações incompatíveis bloqueadas com orientação; falha de conexão não aparenta estado atual | Testes de interface cobrem lista vazia, perda de comunicação, bloqueio e retomada. Falta conferir visualmente os fluxos completos no navegador. |
+| Estados da interface | Ações incompatíveis bloqueadas com orientação; falha de conexão não aparenta estado atual | Testes de interface e navegador Chromium cobrem lista vazia, seleção fictícia, bloqueio offline e retomada. Verificação e QR ativos bloqueiam ativação e teste. Falta conferir os fluxos de conflito e QR no navegador. |
 | Configuração segura | Revisão impede sobrescrita; alterações locais sobrevivem a consultas e salvamentos concorrentes | Testes cobrem conflito externo, edição durante salvamento e preservação dos IDs dos destinos. Seleção por ID usa confirmação e revisão. |
-| Histórico | Confirmação, tentativa, incerteza e não início têm explicação sem prometer leitura | Explicações e limites cobertos por teste; registros antigos permanecem preservados. Falta revisão visual com todos os estados. |
+| Histórico | Confirmação, tentativa, incerteza e não início têm explicação sem prometer leitura | Explicações e limites cobertos por teste e revisão visual em Chromium com cinco estados fictícios, incluindo estado desconhecido. Registros antigos permanecem preservados. |
 | Recuperação | Reinício e backup possuem evidência; falhas de rede têm comportamento seguro | Ensaio real documentado em `validacao-recuperacao.md`; testes de transporte simulado cobrem queda antes e depois da tentativa. Perda prolongada de rede real não foi validada. |
-| Manutenção | Fonte de desenvolvimento identificada, instalação comparada e testes reproduzíveis | Orientação em `operacao.md`; hashes dos módulos centrais comparados no A10s. Restam auditoria completa da distribuição e verificação das cópias antigas do notebook. |
+| Manutenção | Fonte de desenvolvimento identificada, instalação comparada e testes reproduzíveis | Auditoria dos arquivos JavaScript e shell publicados encontrou diferenças em `src/lib.cjs`, `manage.cjs` e testes instalados. Partida privada difere intencionalmente; scripts de prévia e ensaio não estão instalados. Alinhamento dos módulos compartilhados exige manutenção autorizada. Restam verificação das cópias antigas do notebook e instalação controlada. |
 
 Não considerar esta revisão concluída enquanto houver pendências. Não reiniciar serviços, desconectar a rede ou restaurar sobre produção somente para obter uma marca de aprovação. Esses ensaios exigem janela autorizada e preservação do registro de entregas.
