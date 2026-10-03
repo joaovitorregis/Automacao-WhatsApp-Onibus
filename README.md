@@ -4,6 +4,18 @@ Automação da publicação da lista diária do ônibus universitário em um gru
 
 Autor: João Vitor Regis.
 
+[![Tests](https://github.com/joaovitorregis/Automacao-WhatsApp-Onibus/actions/workflows/test.yml/badge.svg)](https://github.com/joaovitorregis/Automacao-WhatsApp-Onibus/actions/workflows/test.yml)
+
+Aplicação pessoal implantada em Android/Termux, com painel privado e testes em Windows/Linux. Não é um serviço hospedado nem uma API oficial do WhatsApp. A confiabilidade operacional depende do celular, da rede e da sessão.
+
+## Documentação
+
+- [Instalação Android](docs/servidor-android.md)
+- [Painel e comandos do notebook](docs/painel-rota.md)
+- [Diagnóstico e incidentes](docs/operacao.md)
+- [Arquitetura e decisões](docs/arquitetura.md)
+- [Contribuição e critérios de entrega](CONTRIBUTING.md)
+
 ## Um celular como servidor
 
 O projeto foi implantado em um Samsung Galaxy A10s com Termux, usando o celular como servidor. Node.js executa o agendador e o conector do WhatsApp; o notebook foi utilizado para desenvolvimento e manutenção.
@@ -39,6 +51,8 @@ npm run dry-run
 ```
 
 O exemplo contém participantes e grupos fictícios e mantém `sendingEnabled: false`. O comando `dry-run` mostra a mensagem que seria gerada, sem enviá-la.
+
+Para desenvolvimento, use Node.js 24, execute `npm test` e acompanhe a CI. No servidor configurado, `npm run doctor` faz um diagnóstico somente leitura; ele não comprova envio nem altera a instalação.
 
 A instalação no Termux está documentada no [guia do servidor Android](docs/servidor-android.md). A autenticação e a habilitação de envio são etapas manuais da instalação.
 
