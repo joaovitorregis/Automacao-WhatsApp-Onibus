@@ -24,11 +24,11 @@ $panelStageTask="$panelRootTask/.incoming/$panelReleaseTask"
 Invoke-PanelRemote "mkdir -p '$panelStageTask/src' '$panelStageTask/socket' '$panelStageTask/test'"
 & scp -r -P 8022 -i $panelKeyTask -o BatchMode=yes -o StrictHostKeyChecking=yes (Join-Path $PSScriptRoot 'panel') "${panelRemoteTask}:$panelStageTask/"
 if($LASTEXITCODE -ne 0){throw 'Upload do painel falhou; versão ativa preservada.'}
-foreach($panelFileTask in @('src/lib.cjs','socket/policy.mjs','socket/test-send.mjs','socket/send.test.mjs','test/panel.test.cjs')) {
+foreach($panelFileTask in @('socket/test-send.mjs','socket/send.test.mjs','test/panel.test.cjs')) {
   & scp -P 8022 -i $panelKeyTask -o BatchMode=yes -o StrictHostKeyChecking=yes (Join-Path $PSScriptRoot $panelFileTask) "${panelRemoteTask}:$panelStageTask/$panelFileTask"
   if($LASTEXITCODE -ne 0){throw 'Upload incompleto; versão ativa preservada.'}
 }
-Invoke-PanelRemote "cd '$panelRootTask' && ln -s '$panelRootTask/socket/node_modules' '$panelStageTask/socket/node_modules' && cd '$panelStageTask' && node --test test/panel.test.cjs socket/send.test.mjs && cd '$panelRootTask' && flock -n -F runtime/automation.guard node '$panelStageTask/panel/install.cjs'"
+Invoke-PanelRemote "cd '$panelRootTask' && cp src/lib.cjs '$panelStageTask/src/lib.cjs' && cp socket/policy.mjs '$panelStageTask/socket/policy.mjs' && ln -s '$panelRootTask/socket/node_modules' '$panelStageTask/socket/node_modules' && cd '$panelStageTask' && node --test test/panel.test.cjs socket/send.test.mjs && cd '$panelRootTask' && flock -n -F runtime/automation.guard node '$panelStageTask/panel/install.cjs'"
 Invoke-PanelRemote "cd '$panelRootTask' && node service.cjs start"
 Invoke-PanelRemote "cd '$panelRootTask' && sv -w 15 up '$panelRootTask/runtime/services/rota-panel' && sv status '$panelRootTask/runtime/services/rota-panel'"
 Write-Host 'Painel instalado. Configure PANEL_HOST com seu endereço privado. Configuração, sessão WhatsApp e histórico preservados.'

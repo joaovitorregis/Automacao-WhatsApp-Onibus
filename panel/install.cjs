@@ -11,6 +11,10 @@ const files = ['panel/model.cjs','panel/server.cjs','panel/run.sh','panel/instal
 const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const protectedFiles = ['config.json','runtime/state.json'];
 const before = protectedFiles.map(file => digest(path.join(target,file)));
+// Test the exact dependencies that remain installed, not newer local copies.
+for (const file of ['src/lib.cjs','socket/policy.mjs']) {
+  if (digest(path.join(stage,file)) !== digest(path.join(target,file))) throw Error('Dependência instalada difere da versão testada: '+file);
+}
 for (const file of files) if (!fs.statSync(path.join(stage,file)).isFile()) throw Error('Arquivo candidato ausente: '+file);
 const backup = path.join(target,'backups','panel-'+Date.now());
 fs.mkdirSync(backup,{recursive:true,mode:0o700});
