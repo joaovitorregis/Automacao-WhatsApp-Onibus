@@ -184,7 +184,7 @@ async function uiFixture() {
       if(state.networkFailure) throw new TypeError('Failed to fetch');
       if(state.offline)throw Error('fixture offline');
       let result={csrf:'fixture-csrf'},status=200;
-      if(url==='/api/dashboard')result=data();
+      if(url==='/api/dashboard'){if(state.beforeDashboard)await state.beforeDashboard();result=data();}
       if(url==='/api/config'){
         const body=JSON.parse(options.body);
         if(state.beforeConfig) await state.beforeConfig();
@@ -273,6 +273,16 @@ test('UI surfaces intersecting server changes and explicitly recovers the form',
   assert.equal(f.el('form-conflict').hidden,false);await f.submit();
   assert.deepEqual(f.state.config.studentLines,['1. External fixture']);assert.equal(f.el('student-lines').value,'1. Unsaved fixture');
   await f.el('form-reload').onclick();assert.equal(f.el('student-lines').value,'1. External fixture');assert.equal(f.el('form-conflict').hidden,true);
+});
+
+test('reload preserves edits made after confirmation while the query is pending',async()=>{
+  const f=await uiFixture();f.el('student-lines').value='1. Initial draft';f.el('settings-form').oninput();
+  f.state.beforeDashboard=async()=>{f.el('student-lines').value='1. Later draft';f.el('settings-form').oninput();f.state.beforeDashboard=null;};
+  await f.el('form-reload').onclick();
+  assert.equal(f.el('student-lines').value,'1. Later draft');
+  assert.match(f.el('toast').textContent,/preservada/);
+  assert.deepEqual(f.state.config.studentLines,base.studentLines);
+  await f.submit();assert.deepEqual(f.state.config.studentLines,['1. Later draft']);
 });
 test('offline UI refresh reports failure, never a success toast',async()=>{
   const f=await uiFixture();f.state.offline=true;await f.el('refresh').onclick();

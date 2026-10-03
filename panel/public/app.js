@@ -93,7 +93,8 @@ function render(d, fillForms = false) {
 }
 async function refresh(fillForms = false) {
   clearTimeout(pollTimer);
-  try { const data=await api('dashboard'); connectionState(true); render(data, fillForms); }
+  const generation=editGeneration;
+  try { const data=await api('dashboard'); connectionState(true); render(data, fillForms && generation===editGeneration); }
   catch (error) { $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); $('connection-warning').hidden = false; $('connection-warning').textContent = 'Sem comunicação com o servidor. Confira internet e Tailscale. Isso não comprova que a automação parou.'; $('toggle-enabled').disabled = true; connectionState(false); throw error; }
   finally { if (csrf) pollTimer = setTimeout(() => refresh().catch(() => {}), 30000); }
 }
@@ -164,7 +165,7 @@ $('refresh').onclick = () => action(async () => { await refresh(); await pollWha
 $('logout').onclick = () => action(async () => { await api('logout','POST',{}); loggedIn(false); });
 $('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = !panelOnline || !!dashboard.whatsapp?.active; } });
 $('settings-form').oninput = () => { dirty = true; editGeneration++; };
-$('form-reload').onclick = () => action(async () => { if (!window.confirm('Descartar as alterações não salvas e carregar os campos atuais do servidor?')) return; await refresh(true); dirty = false; toast('Campos atuais carregados.'); });
+$('form-reload').onclick = () => action(async () => { if (!window.confirm('Descartar as alterações não salvas e carregar os campos atuais do servidor?')) return; const generation=editGeneration; await refresh(true); if(generation===editGeneration) { dirty = false; toast('Campos atuais carregados.'); } else { toast('Sua edição feita durante a consulta foi preservada e ainda não está salva.'); } });
 $('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const generation=editGeneration; const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); if(editGeneration===generation) { dirty = false; render(dashboard,true); toast('Agendamento e mensagem salvos.'); } else { formConfig=JSON.parse(JSON.stringify(dashboard.config)); formRevision=dashboard.revision; $('form-conflict').hidden=true; toast('Alterações enviadas foram salvas. Sua edição posterior permanece no formulário e ainda precisa ser salva.'); } }); };
 $('pause-form').onsubmit = event => { event.preventDefault(); action(async () => { await save({ pausedDates: [...dashboard.config.pausedDates, $('pause-date').value] }); event.target.reset(); toast('Data pausada.'); }); };
 $('test-open').onclick = () => action(async () => { const p = await api('test/prepare','POST',{}); challenge = p.challenge; $('confirm-group').textContent = p.group+(p.groupId?' ('+p.groupId+')':' (seleção por nome)'); $('confirm-text').textContent = p.text; $('test-confirm').disabled = false; $('test-dialog').showModal(); });
