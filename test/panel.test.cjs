@@ -16,7 +16,7 @@ test('frontend retains all bound controls and unique element IDs', () => {
   assert.equal(new Set(ids).size, ids.length, 'IDs must remain unique');
   for (const match of js.matchAll(/\$\('([^']+)'\)/g)) assert.ok(ids.includes(match[1]), 'Missing bound element: '+match[1]);
   const css = fs.readFileSync(path.join(__dirname,'../panel/public/style.css'),'utf8');
-  assert.ok(css.includes('prefers-reduced-motion:reduce'));
+  assert.match(css, /prefers-reduced-motion\s*:\s*reduce/);
   assert.ok(css.includes(':focus-visible'));
 });
 
@@ -202,6 +202,20 @@ test('UI preserves dirty edits across pauses and saves against the updated revis
   f.state.config.pausedDates=['2026-10-05'];await f.refresh();
   assert.equal(f.el('student-lines').value,'1. Edited fixture');assert.equal(f.el('form-conflict').hidden,true);
   await f.submit();assert.deepEqual(f.state.config.studentLines,['1. Edited fixture']);assert.deepEqual(f.state.config.pausedDates,['2026-10-05']);
+});
+
+test('panel routes show one screen and retain unsaved fields, including unknown hashes',async()=>{
+  const f=await uiFixture();
+  f.el('student-lines').value='1. Unsaved navigation edit';
+  f.el('settings-form').oninput();
+  for(const route of ['settings','whatsapp','pauses','history','overview','unknown']) {
+    f.context.window.location={hash:'#'+route};
+    vm.runInContext('navigatePanel()',f.context);
+    const expected=route==='unknown'?'overview':route;
+    for(const id of ['overview','settings','whatsapp','pauses','history']) assert.equal(f.el(id).hidden,id!==expected);
+    assert.equal(f.el('student-lines').value,'1. Unsaved navigation edit');
+  }
+  assert.equal(vm.runInContext('dirty',f.context),true);
 });
 
 test('schedule edits never overwrite group destinations or their IDs',async()=>{

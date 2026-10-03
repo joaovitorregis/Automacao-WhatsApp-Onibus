@@ -172,6 +172,22 @@ $('test-open').onclick = () => action(async () => { const p = await api('test/pr
 $('test-confirm').onclick = () => action(async () => { sendingTest=true; $('test-confirm').disabled = true; try { const job = await api('test/send','POST',{challenge}); $('test-dialog').close(); $('test-open').disabled = true; $('test-status').textContent = 'Teste em andamento. Aguarde a confirmação; não repita o comando.'; const deadline = Date.now() + 150000; while (Date.now() < deadline && csrf) { await new Promise(r => setTimeout(r, 2500)); const result = await api('test/' + job.id); if (result.status !== 'running') { const ok = ['sent','server_accepted'].includes(result.status); $('test-status').textContent = ok ? 'Confirmado pelo servidor do WhatsApp.' : (result.error || 'Resultado incerto. Confira o WhatsApp antes de repetir.'); toast($('test-status').textContent, !ok); await refresh(); return; } } $('test-status').textContent = 'Ainda sem resultado conclusivo. Confira o histórico antes de repetir.'; } finally { sendingTest=false; $('test-open').disabled = !panelOnline || !!dashboard.whatsapp?.active; $('test-confirm').disabled = false; } });
 $('password-open').onclick = () => $('password-dialog').showModal();
 $('password-form').onsubmit = event => { event.preventDefault(); action(async () => { await api('password','POST',Object.fromEntries(new FormData(event.target))); event.target.reset(); $('password-dialog').close(); loggedIn(false); toast('Senha alterada. Entre novamente.'); }); };
-document.querySelectorAll('.nav-link').forEach(a => a.onclick = () => { document.querySelectorAll('.nav-link').forEach(x => x.classList.toggle('active', x === a)); });
+// Keep every form mounted: changing screens must not discard unsaved edits.
+const panelRoutes = ['overview', 'settings', 'whatsapp', 'pauses', 'history'];
+function navigatePanel() {
+  const requested = (window.location?.hash || '#overview').slice(1);
+  const route = panelRoutes.includes(requested) ? requested : 'overview';
+  for (const id of panelRoutes) $(id).hidden = id !== route;
+  document.querySelectorAll('.nav-link').forEach(link => {
+    const active = link.getAttribute('href') === '#' + route;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
+  const current = document.querySelectorAll('.nav-link.active')[0];
+  if ($('page-title')) $('page-title').textContent = current?.textContent || 'Visão geral';
+}
+window.addEventListener('hashchange', navigatePanel);
+navigatePanel();
 window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
 (async () => { try { csrf = (await api('session')).csrf; loggedIn(true); await refresh(true); await pollWhatsApp(); } catch { loggedIn(false); } })();
