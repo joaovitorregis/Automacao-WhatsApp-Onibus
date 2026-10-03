@@ -6,7 +6,7 @@ Galaxy A10s → Termux → Node.js/agendador → conector Baileys → WhatsApp. 
 
 ## Preparar uma instalação própria
 
-1. Instale Termux de uma distribuição confiável e configure Node.js, bash, util-linux (flock) e termux-services. A rotina de recuperação utiliza Termux:API; inicialização via boot depende de Termux:Boot.
+1. Instale Termux de uma distribuição confiável e configure Node.js, bash, util-linux (flock) e termux-services. A rotina de recuperação utiliza Termux:API. A inicialização via boot depende da distribuição: a instalação testada possui receiver integrado; outras podem precisar de Termux:Boot.
 2. Coloque o projeto em `~/whatsapp-onibus-rota-1-android`, caminho esperado pelos scripts de infraestrutura. Instale as dependências da raiz e de `socket/` conforme o README.
 3. Copie `config.example.json` para `config.json`. Ajuste participantes, grupos e agenda, mantendo `sendingEnabled: false` durante a preparação.
 4. Rode os testes e `npm run dry-run`. Crie `runtime/` e inicialize **somente em instalação nova** um estado `state.json` com `{"version":1,"deliveries":{}}`. Nunca substitua ou apague o estado de uma instalação em uso.

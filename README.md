@@ -6,7 +6,7 @@ Autor: João Vitor Regis.
 
 [![Tests](https://github.com/joaovitorregis/Automacao-WhatsApp-Onibus/actions/workflows/test.yml/badge.svg)](https://github.com/joaovitorregis/Automacao-WhatsApp-Onibus/actions/workflows/test.yml)
 
-Aplicação pessoal implantada em Android/Termux, com painel privado e testes em Windows/Linux. Não é um serviço hospedado nem uma API oficial do WhatsApp. A confiabilidade operacional depende do celular, da rede e da sessão.
+Aplicação pessoal implantada em Android/Termux, com painel privado e testes em Windows/Linux. Usa um conector não oficial do WhatsApp.
 
 ## Documentação
 
@@ -74,11 +74,13 @@ painel.ps1            instalação e consulta pelo notebook
 
 ## Painel de controle Rota
 
-O painel foi desenvolvido e instalado no servidor Android. A interface foi verificada em desktop e telas estreitas; testes automatizados usam envio simulado, sem publicar mensagens reais. A configuração pública usa localhost por padrão e dados fictícios.
+O painel está instalado no servidor Android. Permite controlar a agenda, pausar datas, editar a mensagem e consultar confirmações. A configuração de exemplo usa localhost e dados fictícios.
 
-O acesso operacional é pelo notebook na rede privada. Não foi configurado acesso público pela internet. Código no GitHub não hospeda o painel nem dá acesso ao WhatsApp.
+O acesso é pelo notebook na rede privada, sem exposição pública pela internet.
 
 Veja [configuração e uso do painel](docs/painel-rota.md). O painel exige login, protege alterações com token de sessão e confirmação de teste, e mantém credenciais e registros fora do Git.
+
+Ferramentas que interrompem processos reais ficam em [scripts/maintenance/](scripts/maintenance/README.md), separadas dos testes isolados.
 
 ## Limites
 

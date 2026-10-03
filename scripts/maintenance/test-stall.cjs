@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const root = __dirname;
+const root = path.resolve(__dirname, '../..');
 if (JSON.parse(fs.readFileSync(path.join(root, 'config.json'))).sendingEnabled !== false) throw Error('Disable primeiro');
 if (fs.existsSync(path.join(root, 'runtime/automation.lock'))) throw Error('Operacao em curso');
 const pid = Number(fs.readFileSync(path.join(root, 'runtime/scheduler.lock')));

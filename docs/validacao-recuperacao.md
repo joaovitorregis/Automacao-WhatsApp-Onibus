@@ -1,37 +1,23 @@
-# Validação de recuperação — 03/10/2026
+# Validação de recuperação
 
-Este registro descreve testes realizados no Galaxy A10s existente. Não é garantia de disponibilidade contínua nem de recuperação em qualquer aparelho.
+Ensaio realizado em 03/10/2026 no Galaxy A10s com Termux. Os resultados se aplicam à instalação testada.
 
-## Reinício real
+## Reinício
 
-O reinício foi solicitado às 10:08, no fuso America/Fortaleza. O identificador de boot mudou. Após o desbloqueio da tela pelo proprietário, SSH, agendador, painel e servidor de arquivos responderam sem comando manual de partida. A unidade Z: voltou a ser acessível.
+Após reinício real e desbloqueio da tela, SSH, agendador, painel e compartilhamento de arquivos voltaram sem comando manual de partida. O identificador de boot mudou e o heartbeat correspondia ao novo processo supervisionado.
 
-O agendador e o painel tinham novos processos; o heartbeat correspondia ao novo agendador. Antes da verificação de sessão, os hashes da configuração, estado de entregas, autenticação WhatsApp e credencial do painel eram iguais aos anteriores ao reinício.
+Os hashes da configuração, estado de entregas e credenciais permaneceram iguais antes da verificação da sessão. O conector retornou `auth_verified_no_send`, sem transmitir mensagens.
 
-A sessão e os dois grupos configurados foram verificados pelo conector, com resultado `auth_verified_no_send`. Nenhuma mensagem foi transmitida nesse teste. Não foi testada recuperação antes do primeiro desbloqueio, nem após perda prolongada de energia/rede.
+## Backup e restauração
 
-Dois arquivos antigos de boot, `start-server.bak` e `start-server.erro`, foram arquivados fora da pasta executável. A versão instalada do Termux possui receiver de boot integrado e tenta executar todos os arquivos dessa pasta. Não foi necessário instalar outro aplicativo ou trocar o Termux.
+Com os escritores parados e as guardas adquiridas, um snapshot de 6.950 arquivos foi restaurado em diretório isolado. O manifesto SHA-256 verificou código, dependências, configuração, estado, credenciais e definições dos serviços.
 
-## Restauração da aplicação
+Os 51 testes daquela instalação passaram na cópia restaurada, incluindo a trava real de processos Linux. Nenhum serviço de produção foi iniciado pela cópia. Os serviços originais foram retomados com configuração e estado preservados.
 
-Os processos escritores foram pausados durante a coleta, com guardas de recuperação e envio. Um snapshot de 6.950 arquivos foi criado e restaurado em um diretório novo, separado da instalação ativa.
+Uma cópia privada foi transferida ao notebook, com hashes iguais nas duas máquinas. Credenciais e registros detalhados ficam fora do repositório.
 
-O manifesto SHA-256 verificou código, dependências instaladas, configuração, estado, autenticação WhatsApp, credencial do painel e definições dos serviços. Os 51 testes existentes naquela instalação passaram na cópia restaurada, incluindo a trava real de processos Linux.
+## Limites do ensaio
 
-A cópia restaurada não iniciou agendador, conector ou serviço de produção. Testes usam fixtures isoladas. A configuração e o estado ativos permaneceram com os mesmos hashes; os serviços originais foram retomados.
+Não foram testados boot antes do primeiro desbloqueio, perda prolongada de energia ou rede, reset de fábrica, migração para outra plataforma ou promoção do backup sobre uma instalação ativa.
 
-Uma cópia compactada, incluindo os scripts de boot, foi transferida ao notebook. Os hashes no celular e no notebook coincidiram. A pasta local tem acesso restrito à conta do proprietário; o backup contém segredos e não está no GitHub.
-
-Esse teste valida restauração da aplicação na mesma plataforma. Não valida reinstalação do Android/Termux, migração de bibliotecas nativas para outro sistema, recuperação após reset de fábrica ou retorno direto sobre uma instalação ativa.
-
-## Reconciliação histórica de 20–22/09
-
-Foram revisados cinco registros pendentes e sete arquivos de eventos retidos, sem linhas JSON inválidas. Nenhum registro possuía confirmação correspondente nos eventos disponíveis; dois sequer tinham ID de mensagem.
-
-Resultado: **não confirmável com a evidência retida**. Isso não significa “não enviado”. Os registros permaneceram intactos e sem autorização para repetir aquelas tentativas.
-
-Também foi verificado, sem iniciar sender, que uma próxima data elegível continua aceita pela política mesmo com esses registros históricos. A revisão documental está concluída; confirmação factual dessas entregas antigas só seria possível com evidência adicional no WhatsApp.
-
-## Correção do indicador de saúde
-
-O status agora exige concordância entre PID do agendador, PID do heartbeat e PID reportado pelo supervisor, além de heartbeat recente. Um heartbeat do processo anterior não é mais aceito como prova de saúde do novo.
+Consulte o [procedimento de backup](backup.md) e o [guia de operação](operacao.md) antes de realizar manutenção.
