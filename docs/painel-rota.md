@@ -10,7 +10,19 @@ Não use `0.0.0.0` nem exponha a porta no roteador. O HTTP deve ficar restrito a
 
 A primeira execução gera a senha em `runtime/panel-access.txt` e o hash em `runtime/panel-auth.json`. Ambos são privados e ignorados pelo Git. Use Alterar senha após entrar. A senha de demonstração em `panel/preview.cjs` é fictícia e funciona somente na demonstração isolada.
 
-## Notebook
+## Conta WhatsApp e grupos
+
+A seção Conta WhatsApp permite verificar a sessão e listar grupos, ou iniciar vinculação pelo QR. São ações explícitas, sem envio de mensagens, disponíveis somente com envios automáticos desativados. Não apagam a sessão existente. O conector mantém a mesma trava de concorrência dos envios.
+
+O QR exige login e não é publicado como arquivo estático. A vinculação tem limite de cinco minutos; a verificação, 90 segundos. Ao concluir, a conexão de consulta é encerrada. “Conta verificada” representa a última consulta, não conexão permanente nem confirmação de entrega. A lista de grupos expira em cinco minutos.
+
+Selecione o destino pelo nome e ID. A seleção grava ambos e exige configuração sem alterações concorrentes. Se o grupo for renomeado, o envio é recusado até nova seleção. Alterar o nome manualmente remove a seleção por ID. As chaves históricas permanecem baseadas em data/nome: selecionar outro ID com o mesmo nome não libera automaticamente uma tentativa antiga.
+
+Após a manutenção, confira os destinos e reative manualmente os envios. O instalador agora também atualiza o adaptador do conector e exige envios desativados; não substitui credenciais ou registros de entrega.
+
+As funcionalidades foram inspiradas no [WA-AKG](https://github.com/mrifqidaffaaditya/WA-AKG), com implementação própria para a arquitetura existente, sem importar Next.js ou banco de dados.
+
+## Comandos do notebook
 
 Configure variáveis locais no PowerShell, usando os dados da sua instalação:
 
@@ -25,7 +37,7 @@ $env:ROTA_PANEL_URL = 'http://ip-privado-do-servidor:8787'
 .\painel.ps1 -Action Open
 ```
 
-O instalador pressupõe a automação funcionando em `~/whatsapp-onibus-rota-1-android`, com runit, flock, Node.js e dependências socket instalados. Faz upload para uma área de preparação, executa testes sem envio real, guarda backup e instala somente o painel/adaptador de teste. Agenda e estado dos envios são preservados. O script não configura sozinho o IP privado: ajuste `panel/run.sh` antes de instalar.
+O instalador pressupõe a automação funcionando em `~/whatsapp-onibus-rota-1-android`, com runit, flock, Node.js e dependências socket instalados. Faz upload para uma área de preparação, executa testes sem envio real, guarda backup e instala o painel e os adaptadores de conexão/grupos/teste. Agenda e estado dos envios são preservados. O script não configura sozinho o IP privado: ajuste `panel/run.sh` antes de instalar.
 
 Os testes remotos usam a biblioteca e a política já instaladas no servidor. Antes de substituir arquivos, o instalador compara seus hashes com os da área de testes e cancela se houver diferença. Não atualiza essas dependências silenciosamente.
 

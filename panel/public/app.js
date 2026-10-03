@@ -4,7 +4,8 @@ let csrf = '', dashboard, formRevision, formConfig, dirty = false, busy = false,
 const fmt = value => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Fortaleza', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
 const dateFmt = value => value.split('-').reverse().join('/');
 function toast(message, error = false) { $('toast').textContent = message; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 6500); }
-function loggedIn(value) { $('login-view').hidden = value; $('app-view').hidden = !value; if (!value) { csrf = ''; clearTimeout(pollTimer); } }
+let waTimer,qrExpiry;
+function loggedIn(value) { $('login-view').hidden = value; $('app-view').hidden = !value; if (!value) { csrf = ''; clearTimeout(pollTimer); clearTimeout(waTimer); clearTimeout(qrExpiry); $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); } }
 async function api(url, method = 'GET', body) {
   const res = await fetch('/api/' + url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const result = await res.json();
@@ -15,6 +16,9 @@ async function action(fn) { if (busy) return; busy = true; try { await fn(); } c
 function render(d, fillForms = false) {
   dashboard = d;
   const c = d.config, h = d.health;
+  if(d.whatsapp) renderWhatsApp(d.whatsapp);
+  $('wa-check').disabled=c.sendingEnabled || !!d.whatsapp?.active;
+  $('wa-pair').disabled=c.sendingEnabled || !!d.whatsapp?.active;
   $('enabled-label').textContent = c.sendingEnabled ? 'Ativo' : 'Desativado';
   $('enabled-label').classList.toggle('attention', !c.sendingEnabled);
   $('enabled-detail').textContent = c.sendingEnabled ? 'Envios automáticos habilitados' : 'Próximos envios bloqueados';
@@ -64,22 +68,62 @@ function render(d, fillForms = false) {
 async function refresh(fillForms = false) {
   clearTimeout(pollTimer);
   try { render(await api('dashboard'), fillForms); }
-  catch (error) { $('connection-warning').hidden = false; $('connection-warning').textContent = 'Sem comunicação com o servidor. Confira internet e Tailscale. Isso não comprova que a automação parou.'; $('toggle-enabled').disabled = true; throw error; }
+  catch (error) { $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); $('connection-warning').hidden = false; $('connection-warning').textContent = 'Sem comunicação com o servidor. Confira internet e Tailscale. Isso não comprova que a automação parou.'; $('toggle-enabled').disabled = true; throw error; }
   finally { if (csrf) pollTimer = setTimeout(() => refresh().catch(() => {}), 30000); }
 }
+function renderWhatsApp(state) {
+  const labels={unknown:'Não verificada',checking:'Verificando…',qr:'Aguardando leitura do QR',verified:'Conta verificada',disconnected:'Desconectada',failed:'Verificação não concluída',expired:'Verificação expirada'};
+  $('wa-status').textContent=labels[state.status] || 'Não verificada';
+  $('wa-detail').textContent=state.timestamp ? 'Última atualização: '+fmt(state.timestamp)+'. A conexão de verificação é encerrada ao concluir.' : 'Verificação sob demanda; não comprova entrega.';
+  const age=Date.now()-Date.parse(state.timestamp);
+  const show=state.status==='qr' && state.active && age>=0 && age<300000 && typeof state.qr==='string' && state.qr.startsWith('data:image/png;base64,');
+  $('wa-qr').hidden=!show;
+  clearTimeout(qrExpiry);
+  if(show) qrExpiry=setTimeout(()=>{$('wa-qr').hidden=true;$('wa-qr').removeAttribute('src');},300000-age);
+  if(show) $('wa-qr').src=state.qr; else $('wa-qr').removeAttribute('src');
+  for(const id of ['wa-production','wa-test']) {
+    const select=$(id),old=select.value;
+    select.replaceChildren();
+    const empty=document.createElement('option');empty.value='';empty.textContent='Selecione um grupo';select.append(empty);
+    for(const group of state.groups || []) {
+      const option=document.createElement('option');option.value=group.id;option.textContent=group.name+' ('+group.id+')';select.append(option);
+    }
+    select.value=old || dashboard?.config[id==='wa-production'?'productionGroupId':'testGroupId'] || '';
+  }
+}
+async function pollWhatsApp() {
+  clearTimeout(waTimer);
+  try { const state=await api('whatsapp'); if(!csrf) return; renderWhatsApp(state); if(state.active) waTimer=setTimeout(()=>pollWhatsApp().catch(()=>{}),2000); }
+  catch(error) { $('wa-status').textContent='Sem consulta atual'; $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); throw error; }
+}
+$('wa-check').onclick=()=>action(async()=>{
+  await api('whatsapp','POST',{mode:'check'});await pollWhatsApp();
+});
+$('wa-pair').onclick=()=>action(async()=>{
+  if(!window.confirm('Iniciar vinculação da conta pelo QR? Nenhuma mensagem será enviada. Não será apagada a sessão existente.')) return;
+  await api('whatsapp','POST',{mode:'pair',confirm:true});await pollWhatsApp();
+});
+for(const [button,select,field] of [['wa-save-production','wa-production','productionGroup'],['wa-save-test','wa-test','testGroup']]) {
+  $(button).onclick=()=>action(async()=>{
+    if(dirty) throw Error('Salve ou descarte as alterações do formulário antes de selecionar o grupo.');
+    const id=$(select).value;if(!id) throw Error('Selecione um grupo.');
+    if(!window.confirm('Confirmar este grupo como destino '+(field==='productionGroup'?'principal':'de teste')+'?')) return;
+    await api('whatsapp/group','POST',{id,field,revision:dashboard.revision});await refresh(true);toast('Grupo selecionado.');
+  });
+}
 async function save(changes, revision = dashboard.revision) { await api('config', 'PUT', { revision, changes }); await refresh(); }
-$('login-form').onsubmit = async event => { event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true; $('login-error').textContent = ''; try { const r = await api('login','POST',{ password: new FormData(event.target).get('password') }); csrf = r.csrf; event.target.reset(); dirty = false; loggedIn(true); await refresh(true); } catch(error) { $('login-error').textContent = error.message; } finally { button.disabled = false; } };
-$('refresh').onclick = () => action(async () => { await refresh(); toast('Estado atualizado.'); });
+$('login-form').onsubmit = async event => { event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true; $('login-error').textContent = ''; try { const r = await api('login','POST',{ password: new FormData(event.target).get('password') }); csrf = r.csrf; event.target.reset(); dirty = false; loggedIn(true); await refresh(true); await pollWhatsApp(); } catch(error) { $('login-error').textContent = error.message; } finally { button.disabled = false; } };
+$('refresh').onclick = () => action(async () => { await refresh(); await pollWhatsApp(); toast('Estado atualizado.'); });
 $('logout').onclick = () => action(async () => { await api('logout','POST',{}); loggedIn(false); });
 $('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = !$('connection-warning').hidden; } });
 $('settings-form').oninput = () => { dirty = true; };
 $('form-reload').onclick = () => action(async () => { if (!window.confirm('Descartar as alterações não salvas e carregar os campos atuais do servidor?')) return; await refresh(true); dirty = false; toast('Campos atuais carregados.'); });
 $('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ productionGroup: $('production-group').value, testGroup: $('test-group').value, studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); dirty = false; await refresh(true); toast('Agendamento e mensagem salvos.'); }); };
 $('pause-form').onsubmit = event => { event.preventDefault(); action(async () => { await save({ pausedDates: [...dashboard.config.pausedDates, $('pause-date').value] }); event.target.reset(); toast('Data pausada.'); }); };
-$('test-open').onclick = () => action(async () => { const p = await api('test/prepare','POST',{}); challenge = p.challenge; $('confirm-group').textContent = p.group; $('confirm-text').textContent = p.text; $('test-confirm').disabled = false; $('test-dialog').showModal(); });
+$('test-open').onclick = () => action(async () => { const p = await api('test/prepare','POST',{}); challenge = p.challenge; $('confirm-group').textContent = p.group+(p.groupId?' ('+p.groupId+')':' (seleção por nome)'); $('confirm-text').textContent = p.text; $('test-confirm').disabled = false; $('test-dialog').showModal(); });
 $('test-confirm').onclick = () => action(async () => { $('test-confirm').disabled = true; try { const job = await api('test/send','POST',{challenge}); $('test-dialog').close(); $('test-open').disabled = true; $('test-status').textContent = 'Teste em andamento. Aguarde a confirmação; não repita o comando.'; const deadline = Date.now() + 150000; while (Date.now() < deadline && csrf) { await new Promise(r => setTimeout(r, 2500)); const result = await api('test/' + job.id); if (result.status !== 'running') { const ok = ['sent','server_accepted'].includes(result.status); $('test-status').textContent = ok ? 'Confirmado pelo servidor do WhatsApp.' : (result.error || 'Resultado incerto. Confira o WhatsApp antes de repetir.'); toast($('test-status').textContent, !ok); await refresh(); return; } } $('test-status').textContent = 'Ainda sem resultado conclusivo. Confira o histórico antes de repetir.'; } finally { $('test-open').disabled = false; $('test-confirm').disabled = false; } });
 $('password-open').onclick = () => $('password-dialog').showModal();
 $('password-form').onsubmit = event => { event.preventDefault(); action(async () => { await api('password','POST',Object.fromEntries(new FormData(event.target))); event.target.reset(); $('password-dialog').close(); loggedIn(false); toast('Senha alterada. Entre novamente.'); }); };
 document.querySelectorAll('.nav-link').forEach(a => a.onclick = () => { document.querySelectorAll('.nav-link').forEach(x => x.classList.toggle('active', x === a)); });
 window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
-(async () => { try { csrf = (await api('session')).csrf; loggedIn(true); await refresh(true); } catch { loggedIn(false); } })();
+(async () => { try { csrf = (await api('session')).csrf; loggedIn(true); await refresh(true); await pollWhatsApp(); } catch { loggedIn(false); } })();

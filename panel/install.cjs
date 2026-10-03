@@ -7,12 +7,13 @@ const { spawnSync } = require('node:child_process');
 const target = '/data/data/com.termux/files/home/whatsapp-onibus-rota-1-android';
 const stage = path.resolve(__dirname,'..');
 if (!stage.startsWith(target + '/.incoming/')) throw Error('Instalador deve executar a partir da área de preparação.');
-const files = ['panel/model.cjs','panel/server.cjs','panel/run.sh','panel/install.cjs','panel/public/index.html','panel/public/app.js','panel/public/style.css','panel/public/icon.svg','socket/test-send.mjs','test/panel.test.cjs'];
+const files = ['panel/model.cjs','panel/server.cjs','panel/whatsapp.cjs','panel/run.sh','panel/install.cjs','panel/public/index.html','panel/public/app.js','panel/public/style.css','panel/public/icon.svg','socket/auth.mjs','socket/groups.mjs','socket/groups.test.mjs','socket/mode.mjs','socket/mode.test.mjs','socket/test-send.mjs','test/panel.test.cjs','test/whatsapp-panel.test.cjs'];
 const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const protectedFiles = ['config.json','runtime/state.json'];
 const before = protectedFiles.map(file => digest(path.join(target,file)));
+if(JSON.parse(fs.readFileSync(path.join(target,'config.json'),'utf8')).sendingEnabled!==false) throw Error('Desative envios antes de atualizar o conector/painel');
 // Test the exact dependencies that remain installed, not newer local copies.
-for (const file of ['src/lib.cjs','socket/policy.mjs']) {
+for (const file of ['src/lib.cjs','socket/policy.mjs','socket/auth-store.mjs','socket/lock.mjs']) {
   if (digest(path.join(stage,file)) !== digest(path.join(target,file))) throw Error('Dependência instalada difere da versão testada: '+file);
 }
 for (const file of files) if (!fs.statSync(path.join(stage,file)).isFile()) throw Error('Arquivo candidato ausente: '+file);

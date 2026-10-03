@@ -33,6 +33,7 @@ A execução no celular teve um envio agendado confirmado em 25/09/2026, às 02:
 - Bloqueia repetições quando uma tentativa já existe ou seu resultado é incerto.
 - Oferece supervisor, trava de concorrência e recuperação do processo no Android.
 - Inclui o painel Rota: controle de envios, agenda, pausas por data, prévia da mensagem e histórico de confirmações.
+- Permite verificar a conta, vincular pelo QR protegido e escolher grupos pelo identificador, em manutenção com envios desativados.
 
 ACK confirma aceitação pelo servidor; não significa leitura pelos integrantes do grupo.
 
