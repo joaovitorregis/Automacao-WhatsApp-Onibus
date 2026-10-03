@@ -14,6 +14,7 @@ function validateConfig(config) {
   if (!config?.timezone || typeof config.timezone !== 'string') errors.push('timezone ausente');
   if (!config?.productionGroup || typeof config.productionGroup !== 'string') errors.push('productionGroup ausente');
   if (!config?.testGroup || typeof config.testGroup !== 'string') errors.push('testGroup ausente');
+  for(const field of ['productionGroupId','testGroupId']) if(config?.[field]!==undefined && (typeof config[field]!=='string' || !/^\d+(?:-\d+)?@g\.us$/.test(config[field]))) errors.push(field+' invalido');
   if (!Array.isArray(config?.studentLines) || config.studentLines.length === 0) errors.push('studentLines deve ter pelo menos uma linha');
   if (config?.pausedDates !== undefined && (!Array.isArray(config.pausedDates)
     || config.pausedDates.some((date) => !/^\d{4}-\d{2}-\d{2}$/.test(date)))) {

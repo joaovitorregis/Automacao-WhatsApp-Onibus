@@ -165,7 +165,7 @@ test('logout while a password change is hashing cancels that pending write',asyn
 
 async function uiFixture() {
   const elements=new Map();
-  const node=()=>({textContent:'',value:'',hidden:false,disabled:false,checked:false,children:[],classList:{toggle(){}},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},setAttribute(){},querySelector(){return node();},showModal(){},close(){}});
+  const node=()=>({textContent:'',value:'',hidden:false,disabled:false,checked:false,children:[],classList:{toggle(){}},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},setAttribute(){},removeAttribute(){},querySelector(){return node();},showModal(){},close(){}});
   const el=id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id);};
   const weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(value=>({...node(),value}));
   const state={config:JSON.parse(JSON.stringify(base)),offline:false};

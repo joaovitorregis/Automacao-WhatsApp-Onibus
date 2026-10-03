@@ -9,6 +9,7 @@ const exec = promisify(execFile);
 const scrypt = promisify(crypto.scrypt);
 const model = require('./model.cjs');
 const lib = require('../src/lib.cjs');
+const {createWhatsApp} = require('./whatsapp.cjs');
 const publicDir = path.join(__dirname, 'public');
 const fail = (message, status = 400) => Object.assign(Error(message), { status });
 async function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
@@ -18,7 +19,7 @@ async function validPassword(password, auth) {
   const hash = await hashPassword(password, auth.salt);
   return crypto.timingSafeEqual(Buffer.from(hash.hash, 'hex'), Buffer.from(auth.hash, 'hex'));
 }
-async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0.0.1', port = 8787, service, sendTest } = {}) {
+async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0.0.1', port = 8787, service, sendTest, whatsapp } = {}) {
   const runtime = path.join(root, 'runtime');
   fs.mkdirSync(runtime, { recursive: true, mode: 0o700 });
   const authPath = path.join(runtime, 'panel-auth.json');
@@ -51,6 +52,7 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
     return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { status: 'not_started', error: 'Não foi possível iniciar o teste. Verifique a conexão e tente novamente após consultar o histórico.' };
   });
   const sessions = new Map(), attempts = new Map(), jobs = new Map();
+  const wa = whatsapp || createWhatsApp(root);
   const credentials = () => JSON.parse(fs.readFileSync(authPath, 'utf8'));
   const config = () => lib.validateConfig(JSON.parse(fs.readFileSync(path.join(root, 'config.json'), 'utf8')));
   const audit = (action, details = {}) => fs.appendFileSync(path.join(runtime, 'panel-audit.jsonl'), JSON.stringify({ timestamp: new Date().toISOString(), action, ...details }) + '\n', { mode: 0o600 });
@@ -129,6 +131,38 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
       };
       requireSession();
       if (url.pathname === '/api/session' && req.method === 'GET') { respond(200, { csrf: session.csrf }); return; }
+      if(url.pathname==='/api/whatsapp' && req.method==='GET') {respond(200,wa.status());return;}
+      if(url.pathname==='/api/whatsapp' && req.method==='POST') {
+        const body=await readBody();
+        await serialize(async()=>{
+          requireSession();
+          if(config().sendingEnabled!==false) throw fail('Desative os envios automáticos antes de verificar ou vincular.',409);
+          if([...jobs.values()].some(job=>job.status==='running')) throw fail('Aguarde o teste em andamento.',409);
+          if(!['check','pair'].includes(body.mode)) throw fail('Ação inválida.');
+          if(body.mode==='pair' && body.confirm!==true) throw fail('Confirme a vinculação.');
+          respond(202,wa.start(body.mode));
+          audit('whatsapp_'+body.mode);
+        });return;
+      }
+      if(url.pathname==='/api/whatsapp/group' && req.method==='POST') {
+        const body=await readBody();
+        await serialize(async()=>{
+          requireSession();
+          const c=config();
+          if([...jobs.values()].some(job=>job.status==='running')) throw fail('Aguarde o teste em andamento.',409);
+          if(c.sendingEnabled!==false || wa.status().active) throw fail('Desative envios e aguarde a verificação terminar.',409);
+          if(model.revision(c)!==body.revision) throw fail('A configuração mudou. Atualize o painel.',409);
+          if(!['productionGroup','testGroup'].includes(body.field)) throw fail('Destino inválido.');
+          const state=wa.status(),age=Date.now()-Date.parse(state.timestamp);
+          if(state.status!=='verified' || !Number.isFinite(age) || age<0 || age>=300000) throw fail('Verifique a conta novamente para atualizar os grupos.',409);
+          const group=state.groups.find(g=>g.id===body.id);
+          if(!group || !/^\d+(?:-\d+)?@g\.us$/.test(group.id) || typeof group.name!=='string' || !group.name.trim() || group.name.length>120 || /[\r\n\x00]/.test(group.name)) throw fail('Grupo inválido.');
+          model.durableWrite(path.join(runtime,'panel-config-backup.json'),c);
+          model.durableWrite(path.join(root,'config.json'),lib.validateConfig({...c,[body.field]:group.name,[body.field+'Id']:group.id}));
+          audit('group_selected',{field:body.field});
+          respond(200,{ok:true});
+        });return;
+      }
       if (url.pathname === '/api/logout' && req.method === 'POST') {
         sessions.delete(token); res.setHeader('Set-Cookie', 'rota_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); respond(200, { ok: true }); return;
       }
@@ -147,7 +181,7 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
         deliveries.push(...tests.slice(0, 50));
         deliveries.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
         let health; try { health = await callService('status'); } catch { health = { healthy: false, schedulerRunning: false }; }
-        respond(200, { config: { ...c, pausedDates: c.pausedDates || [] }, revision: model.revision(c), health, nextRun: model.nextRun(c), today: lib.getDateKey(c), preview: lib.buildMessage(c), history: deliveries.slice(0, 100), events: model.tailJson(path.join(root, 'socket/runtime/events.jsonl')), now: new Date().toISOString() }); return;
+        respond(200, { config: { ...c, pausedDates: c.pausedDates || [] }, revision: model.revision(c), health, whatsapp:wa.status(), nextRun: model.nextRun(c), today: lib.getDateKey(c), preview: lib.buildMessage(c), history: deliveries.slice(0, 100), events: model.tailJson(path.join(root, 'socket/runtime/events.jsonl')), now: new Date().toISOString() }); return;
       }
       if (url.pathname === '/api/config' && req.method === 'PUT') {
         const body = await readBody();
@@ -156,6 +190,7 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
           requireSession();
           const current = config(); if (model.revision(current) !== body.revision) throw fail('A configuração mudou. Atualize o painel antes de salvar.', 409);
           const next = lib.validateConfig({ ...current, ...changes });
+          for(const field of ['productionGroup','testGroup']) if(Object.hasOwn(changes,field) && changes[field]!==current[field]) delete next[field+'Id'];
           model.durableWrite(path.join(runtime, 'panel-config-backup.json'), current);
           model.durableWrite(path.join(root, 'config.json'), next);
           audit('config_saved', { fields: Object.keys(changes) });
@@ -165,6 +200,7 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
         const body = await readBody(); if (typeof body.enabled !== 'boolean') throw fail('Ação inválida.');
         await serialize(async () => {
           requireSession();
+          if(body.enabled && wa.status().active) throw fail('Aguarde a verificação ou vinculação terminar.',409);
           const current = config(); if (model.revision(current) !== body.revision) throw fail('A configuração mudou. Atualize o painel.', 409);
           if (body.enabled) {
             const health = await callService('start');
@@ -195,11 +231,12 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
         const c = config();
         const challenge = crypto.randomUUID();
         session.challenge = { id: challenge, expires: Date.now() + 60000, revision: model.revision(c), text: lib.buildMessage(c) };
-        respond(200, { challenge, group: c.testGroup, text: session.challenge.text }); return;
+        respond(200, { challenge, group: c.testGroup, groupId:c.testGroupId || null, text: session.challenge.text }); return;
       }
       if (url.pathname === '/api/test/send' && req.method === 'POST') {
         const body = await readBody();
         requireSession();
+        if(wa.status().active) throw fail('Aguarde a verificação ou vinculação terminar.',409);
         const challenge = session.challenge;
         if (!challenge || challenge.id !== body.challenge || challenge.expires < Date.now()) throw fail('Confirmação expirada. Abra o teste novamente.', 409);
         session.challenge = null;
@@ -218,7 +255,7 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
     } catch (error) { if (!res.headersSent) respond(error.status || 500, { error: error.status ? error.message : 'Não foi possível concluir. Confira o estado do servidor.' }); else res.end(); }
   });
   server.requestTimeout = 35000; server.headersTimeout = 10000;
-  server.on('close', () => clearInterval(maintenance));
+  server.on('close', () => {clearInterval(maintenance);wa.close?.();});
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, resolve); });
   return server;
 }

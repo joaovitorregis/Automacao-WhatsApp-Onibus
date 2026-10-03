@@ -12,10 +12,14 @@ const files = ['config.json', 'package.json', 'package-lock.json', 'run.sh', 'RE
   'test/lib.test.cjs', 'test/confirmation.test.cjs', 'test/ack-reader.test.cjs',
   'service.cjs', 'supervised-run.sh', 'socket/package.json', 'socket/package-lock.json', 'socket/auth.mjs',
   'socket/auth-store.mjs', 'socket/test-send.mjs', 'socket/policy.mjs',
+  'socket/groups.mjs', 'socket/groups.test.mjs',
+  'socket/mode.mjs', 'socket/mode.test.mjs',
   'socket/auth-store.test.mjs', 'socket/policy.test.mjs', 'socket/send.test.mjs'];
 const json = p => JSON.parse(fs.readFileSync(p, 'utf8'));
 const hash = p => createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const legacyOptional = new Set(['src/native-client.cjs', 'src/health.cjs', 'test/health.test.cjs',
+  'socket/groups.mjs', 'socket/groups.test.mjs',
+  'socket/mode.mjs', 'socket/mode.test.mjs',
   'scripts/recovery-snapshot.cjs', 'test/recovery-snapshot.test.cjs', 'docs/backup.md', 'docs/validacao-recuperacao.md']);
 function versionPath(folder, version) {
   if (!/^[a-zA-Z0-9-]{1,80}$/.test(version || '')) throw Error('Identificador de versao invalido');
@@ -63,6 +67,8 @@ function main() {
   }
   assertDisabled(source);
   if (fs.readFileSync(path.join(source, 'service.cjs'), 'utf8').includes('./src/health.cjs') && !fs.existsSync(path.join(source, 'src/health.cjs'))) throw Error('Modulo de saude exigido pela versao candidata esta ausente');
+  if(fs.readFileSync(path.join(source,'socket/auth.mjs'),'utf8').includes('./groups.mjs') && !fs.existsSync(path.join(source,'socket/groups.mjs'))) throw Error('Modulo de grupos exigido pela versao candidata esta ausente');
+  if(fs.readFileSync(path.join(source,'socket/auth.mjs'),'utf8').includes('./mode.mjs') && !fs.existsSync(path.join(source,'socket/mode.mjs'))) throw Error('Modulo de modos exigido pela versao candidata esta ausente');
   assertDisabled(base);
   if (hash(path.join(source, 'package-lock.json')) !== hash(path.join(base, 'package-lock.json'))) {
     throw Error('Dependencias mudaram: instalacao controlada de dependencias necessaria antes de publicar');

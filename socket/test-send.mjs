@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { generateMessageIDV2 } from '@whiskeysockets/baileys';
 import lib from '../src/lib.cjs';
 import { scheduledKey } from './policy.mjs';
+import { resolveGroup } from './groups.mjs';
 
 // Explicit, single test only. A persisted attempt prevents accidental reruns.
 export async function testSend(sock, root, config, log, scheduled = false) {
@@ -15,9 +16,7 @@ export async function testSend(sock, root, config, log, scheduled = false) {
   const state = scheduled && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { version: 1, deliveries: {} };
   const name = scheduled ? config.productionGroup : config.testGroup;
   const groups = Object.values(await sock.groupFetchAllParticipating());
-  const matches = groups.filter(group => group.subject === name);
-  if (matches.length !== 1) throw Error('Grupo de teste ausente ou ambiguo');
-  const jid = matches[0].id;
+  const jid = resolveGroup(groups,name,scheduled?config.productionGroupId:config.testGroupId).id;
   const messageId = generateMessageIDV2(sock.user?.id);
   let key;
   if (scheduled) {
