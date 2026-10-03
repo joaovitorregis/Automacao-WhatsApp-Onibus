@@ -192,6 +192,26 @@ test('UI preserves dirty edits across pauses and saves against the updated revis
   assert.equal(f.el('student-lines').value,'1. Edited fixture');assert.equal(f.el('form-conflict').hidden,true);
   await f.submit();assert.deepEqual(f.state.config.studentLines,['1. Edited fixture']);assert.deepEqual(f.state.config.pausedDates,['2026-10-05']);
 });
+
+test('schedule edits never overwrite group destinations or their IDs',async()=>{
+  const f=await uiFixture();
+  f.state.config.productionGroupId='fixture-main@g.us';f.state.config.testGroupId='fixture-test@g.us';
+  await f.refresh();f.el('student-lines').value='1. Updated fixture';f.el('settings-form').oninput();await f.submit();
+  assert.equal(f.state.config.productionGroup,base.productionGroup);
+  assert.equal(f.state.config.testGroup,base.testGroup);
+  assert.equal(f.state.config.productionGroupId,'fixture-main@g.us');
+  assert.equal(f.state.config.testGroupId,'fixture-test@g.us');
+  const html=fs.readFileSync(path.join(__dirname,'../panel/public/index.html'),'utf8');
+  assert.ok(!html.includes('id="production-group"'));assert.ok(!html.includes('id="test-group"'));
+});
+
+test('empty group selectors explain verification and block selection',async()=>{
+  const f=await uiFixture();
+  assert.equal(f.el('wa-production').disabled,true);
+  assert.equal(f.el('wa-save-test').disabled,true);
+  assert.equal(f.el('wa-test').children[0].textContent,'Verifique a conta para carregar grupos');
+  assert.equal(f.el('wa-disable').hidden,false);
+});
 test('UI surfaces intersecting server changes and explicitly recovers the form',async()=>{
   const f=await uiFixture();f.el('student-lines').value='1. Unsaved fixture';f.el('settings-form').oninput();
   f.state.config.studentLines=['1. External fixture'];await f.refresh();

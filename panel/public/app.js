@@ -17,8 +17,7 @@ function render(d, fillForms = false) {
   dashboard = d;
   const c = d.config, h = d.health;
   if(d.whatsapp) renderWhatsApp(d.whatsapp);
-  $('wa-check').disabled=c.sendingEnabled || !!d.whatsapp?.active;
-  $('wa-pair').disabled=c.sendingEnabled || !!d.whatsapp?.active;
+  $('wa-destinations').textContent='Destino principal: '+c.productionGroup+'. Destino de teste: '+(c.testGroup || 'não configurado')+'.';
   $('enabled-label').textContent = c.sendingEnabled ? 'Ativo' : 'Desativado';
   $('enabled-label').classList.toggle('attention', !c.sendingEnabled);
   $('enabled-detail').textContent = c.sendingEnabled ? 'Envios automáticos habilitados' : 'Próximos envios bloqueados';
@@ -32,14 +31,13 @@ function render(d, fillForms = false) {
   $('toggle-enabled').disabled = false; $('toggle-enabled').textContent = c.sendingEnabled ? 'Desativar envios automáticos' : 'Ativar envios automáticos';
   $('message-preview').textContent = d.preview; $('destination').textContent = c.productionGroup;
   $('connection-warning').hidden = h.healthy; $('connection-warning').textContent = 'O executor precisa de atenção. Não trate o agendamento ativo como garantia de envio.';
-  const formKeys = ['productionGroup', 'testGroup', 'studentLines', 'schedule'];
+  const formKeys = ['studentLines', 'schedule'];
   const serverFieldsUnchanged = formConfig && formKeys.every(key => JSON.stringify(c[key]) === JSON.stringify(formConfig[key]));
   if (dirty && serverFieldsUnchanged) formRevision = d.revision;
   $('form-conflict').hidden = fillForms || !dirty || serverFieldsUnchanged;
   if (fillForms || !dirty) {
     formRevision = d.revision;
     formConfig = JSON.parse(JSON.stringify(c));
-    $('production-group').value = c.productionGroup; $('test-group').value = c.testGroup;
     $('schedule-time').value = `${String(c.schedule.hour).padStart(2,'0')}:${String(c.schedule.minute).padStart(2,'0')}`;
     $('grace').value = c.schedule.graceMinutes; $('student-lines').value = c.studentLines.join('\n');
     document.querySelectorAll('.day-picker input').forEach(el => el.checked = c.schedule.weekdays.includes(el.value));
@@ -72,6 +70,13 @@ async function refresh(fillForms = false) {
   finally { if (csrf) pollTimer = setTimeout(() => refresh().catch(() => {}), 30000); }
 }
 function renderWhatsApp(state) {
+  const enabled=dashboard?.config.sendingEnabled!==false, active=!!state.active;
+  const groups=state.groups || [];
+  $('wa-check').disabled=enabled || active;
+  $('wa-pair').disabled=enabled || active;
+  $('wa-disable').hidden=!enabled;
+  $('wa-disable').disabled=active;
+  $('wa-guidance').textContent=enabled ? 'Desative os envios aqui para verificar a conta e carregar os grupos. Nenhuma mensagem será enviada pela verificação.' : active ? 'Verificação em andamento. Aguarde para selecionar os grupos.' : groups.length ? 'Selecione os destinos abaixo. Ao terminar, reative os envios em Visão geral.' : 'Envios desativados. Clique em “Verificar conta e grupos” para carregar os destinos. Use o QR somente se precisar vincular a conta.';
   const labels={unknown:'Não verificada',checking:'Verificando…',qr:'Aguardando leitura do QR',verified:'Conta verificada',disconnected:'Desconectada',failed:'Verificação não concluída',expired:'Verificação expirada'};
   $('wa-status').textContent=labels[state.status] || 'Não verificada';
   $('wa-detail').textContent=state.timestamp ? 'Última atualização: '+fmt(state.timestamp)+'. A conexão de verificação é encerrada ao concluir.' : 'Verificação sob demanda; não comprova entrega.';
@@ -84,13 +89,20 @@ function renderWhatsApp(state) {
   for(const id of ['wa-production','wa-test']) {
     const select=$(id),old=select.value;
     select.replaceChildren();
-    const empty=document.createElement('option');empty.value='';empty.textContent='Selecione um grupo';select.append(empty);
+    select.disabled=enabled || active || !groups.length;
+    const empty=document.createElement('option');empty.value='';empty.textContent=groups.length ? 'Selecione um grupo' : active ? 'Carregando grupos…' : 'Verifique a conta para carregar grupos';select.append(empty);
     for(const group of state.groups || []) {
       const option=document.createElement('option');option.value=group.id;option.textContent=group.name+' ('+group.id+')';select.append(option);
     }
     select.value=old || dashboard?.config[id==='wa-production'?'productionGroupId':'testGroupId'] || '';
+    $(id==='wa-production'?'wa-save-production':'wa-save-test').disabled=select.disabled || !select.value;
   }
 }
+for(const id of ['wa-production','wa-test']) $(id).onchange=()=>{ $(id==='wa-production'?'wa-save-production':'wa-save-test').disabled=$(id).disabled || !$(id).value; };
+$('wa-disable').onclick=()=>action(async()=>{
+  if(!window.confirm('Desativar os próximos envios automáticos para verificar a conta? Um envio já iniciado pode terminar. Você precisará reativar os envios manualmente.')) return;
+  await api('enabled','POST',{enabled:false,revision:dashboard.revision});await refresh();toast('Envios desativados. Agora verifique a conta e os grupos.');
+});
 async function pollWhatsApp() {
   clearTimeout(waTimer);
   try { const state=await api('whatsapp'); if(!csrf) return; renderWhatsApp(state); if(state.active) waTimer=setTimeout(()=>pollWhatsApp().catch(()=>{}),2000); }
@@ -118,7 +130,7 @@ $('logout').onclick = () => action(async () => { await api('logout','POST',{}); 
 $('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = !$('connection-warning').hidden; } });
 $('settings-form').oninput = () => { dirty = true; };
 $('form-reload').onclick = () => action(async () => { if (!window.confirm('Descartar as alterações não salvas e carregar os campos atuais do servidor?')) return; await refresh(true); dirty = false; toast('Campos atuais carregados.'); });
-$('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ productionGroup: $('production-group').value, testGroup: $('test-group').value, studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); dirty = false; await refresh(true); toast('Agendamento e mensagem salvos.'); }); };
+$('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); dirty = false; await refresh(true); toast('Agendamento e mensagem salvos.'); }); };
 $('pause-form').onsubmit = event => { event.preventDefault(); action(async () => { await save({ pausedDates: [...dashboard.config.pausedDates, $('pause-date').value] }); event.target.reset(); toast('Data pausada.'); }); };
 $('test-open').onclick = () => action(async () => { const p = await api('test/prepare','POST',{}); challenge = p.challenge; $('confirm-group').textContent = p.group+(p.groupId?' ('+p.groupId+')':' (seleção por nome)'); $('confirm-text').textContent = p.text; $('test-confirm').disabled = false; $('test-dialog').showModal(); });
 $('test-confirm').onclick = () => action(async () => { $('test-confirm').disabled = true; try { const job = await api('test/send','POST',{challenge}); $('test-dialog').close(); $('test-open').disabled = true; $('test-status').textContent = 'Teste em andamento. Aguarde a confirmação; não repita o comando.'; const deadline = Date.now() + 150000; while (Date.now() < deadline && csrf) { await new Promise(r => setTimeout(r, 2500)); const result = await api('test/' + job.id); if (result.status !== 'running') { const ok = ['sent','server_accepted'].includes(result.status); $('test-status').textContent = ok ? 'Confirmado pelo servidor do WhatsApp.' : (result.error || 'Resultado incerto. Confira o WhatsApp antes de repetir.'); toast($('test-status').textContent, !ok); await refresh(); return; } } $('test-status').textContent = 'Ainda sem resultado conclusivo. Confira o histórico antes de repetir.'; } finally { $('test-open').disabled = false; $('test-confirm').disabled = false; } });
