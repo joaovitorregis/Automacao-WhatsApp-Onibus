@@ -44,3 +44,7 @@ node --test test/panel.test.cjs
 A demonstração usa `config.example.json`, dados fictícios e envio simulado em `http://127.0.0.1:8788`. Não é o painel de produção. As fontes e os assets são locais, sem dependência de CDN.
 
 O design usa sinalização de transporte como referência. A direção visual está em `panel/DESIGN.md`.
+
+## Verificação contínua
+
+O workflow `Tests` executa a verificação de sintaxe e os testes isolados em Windows e Linux, usando Node.js 24 e os dois arquivos de dependências travadas. Não recebe credenciais do servidor e não envia mensagens. No Linux também roda o teste real de exclusão por `flock` e liberação após encerramento do processo. Consulte a aba Actions do GitHub; testes verdes não comprovam internet, energia ou entrega no celular.
