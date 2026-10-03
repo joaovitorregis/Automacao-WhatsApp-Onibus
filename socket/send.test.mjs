@@ -4,6 +4,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { testSend } from './test-send.mjs';
 
 for (const error of [undefined, '500']) test(`persist exact ACK outcome: ${error ?? 'success'}`, async () => {
@@ -55,4 +56,20 @@ test('falha ao persistir impede transmitir mensagem', async () => {
     await assert.rejects(testSend(sock, root, { testGroup: 'Grupo', timezone: 'America/Fortaleza', studentLines: ['teste'] }, () => {}));
     assert.equal(sent, false);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('panel test uses unique durable record without clearing historical test', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bus-panel-send-'));
+  fs.mkdirSync(path.join(root,'runtime'));
+  fs.writeFileSync(path.join(root,'runtime/test-send.json'),'historical-record');
+  const id = randomUUID(); process.env.WHATSAPP_TEST_RECORD = id;
+  const ws = new EventEmitter(); let calls = 0;
+  const sock = { ws, user:{id:'123456789:1@s.whatsapp.net'}, groupFetchAllParticipating:async()=>({g:{id:'test@g.us',subject:'Grupo'}}), sendMessage:async(_jid,_text,options)=>{calls++;ws.emit('CB:ack,class:message',{attrs:{id:options.messageId,class:'message'}});} };
+  try {
+    await testSend(sock,root,{testGroup:'Grupo',timezone:'America/Fortaleza',studentLines:['teste']},()=>{});
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root,`runtime/test-${id}.json`))).status,'server_accepted');
+    assert.equal(fs.readFileSync(path.join(root,'runtime/test-send.json'),'utf8'),'historical-record');
+    await assert.rejects(testSend(sock,root,{},()=>{}),/Teste ja registrado/); assert.equal(calls,1);
+    process.env.WHATSAPP_TEST_RECORD = '../../escape'; await assert.rejects(testSend(sock,root,{},()=>{}),/Identificador/);
+  } finally { delete process.env.WHATSAPP_TEST_RECORD; fs.rmSync(root,{recursive:true,force:true}); }
 });

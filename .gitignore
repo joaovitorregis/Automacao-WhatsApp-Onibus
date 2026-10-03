@@ -20,3 +20,6 @@ staging/
 .wwebjs_cache/
 *.pem
 *.key
+.incoming/
+output/
+.playwright-cli/

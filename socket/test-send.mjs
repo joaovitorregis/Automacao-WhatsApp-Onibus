@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { generateMessageIDV2 } from '@whiskeysockets/baileys';
 import lib from '../src/lib.cjs';
 import { scheduledKey } from './policy.mjs';
 
 // Explicit, single test only. A persisted attempt prevents accidental reruns.
 export async function testSend(sock, root, config, log, scheduled = false) {
-  const file = path.join(root, scheduled ? '../runtime/state.json' : 'runtime/test-send.json');
+  const testRecord = process.env.WHATSAPP_TEST_RECORD;
+  if (!scheduled && testRecord && !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(testRecord)) throw Error('Identificador de teste invalido');
+  const file = path.join(root, scheduled ? '../runtime/state.json' : testRecord ? `runtime/test-${testRecord}.json` : 'runtime/test-send.json');
   if (!scheduled && fs.existsSync(file)) throw Error('Teste ja registrado; verificar resultado antes de qualquer novo envio.');
   if (scheduled && !fs.existsSync(file)) throw Error('Estado de entregas ausente; envio recusado para evitar duplicacao');
   const state = scheduled && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { version: 1, deliveries: {} };
@@ -23,7 +26,13 @@ export async function testSend(sock, root, config, log, scheduled = false) {
     key = scheduledKey(current, state);
     if (!key) { log('scheduled_skip'); return; }
   }
-  const record = { messageId, group: name, text: lib.buildMessage(config), status: 'attempting', timestamp: new Date().toISOString() };
+  const text = lib.buildMessage(config);
+  if (!scheduled && testRecord && process.env.WHATSAPP_TEST_REVISION) {
+    const current = JSON.parse(fs.readFileSync(path.join(root, '../config.json'), 'utf8'));
+    const hash = value => createHash('sha256').update(value).digest('hex');
+    if (hash(JSON.stringify(current)) !== process.env.WHATSAPP_TEST_REVISION || JSON.stringify(current) !== JSON.stringify(config) || hash(text) !== process.env.WHATSAPP_TEST_TEXT_HASH) throw Error('Configuracao ou data mudou; confirme a previa novamente antes de enviar.');
+  }
+  const record = { messageId, group: name, text, status: 'attempting', timestamp: new Date().toISOString() };
   if (scheduled) state.deliveries[key] = record;
   const persist = () => {
     const tmp = file + '.tmp';
