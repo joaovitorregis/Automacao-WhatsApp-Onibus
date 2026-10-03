@@ -56,8 +56,6 @@ panel/                painel web privado e interface responsiva
 painel.ps1            instalação e consulta pelo notebook
 ```
 
-## Limites
-
 ## Painel de controle Rota
 
 O painel foi desenvolvido e instalado no servidor Android. A interface foi verificada em desktop e telas estreitas; testes automatizados usam envio simulado, sem publicar mensagens reais. A configuração pública usa localhost por padrão e dados fictícios.
@@ -65,6 +63,8 @@ O painel foi desenvolvido e instalado no servidor Android. A interface foi verif
 O acesso operacional é pelo notebook na rede privada. Não foi configurado acesso público pela internet. Código no GitHub não hospeda o painel nem dá acesso ao WhatsApp.
 
 Veja [configuração e uso do painel](docs/painel-rota.md). O painel exige login, protege alterações com token de sessão e confirmação de teste, e mantém credenciais e registros fora do Git.
+
+## Limites
 
 O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. Não há registro de validação da retomada automática após reinicialização. A integração depende da compatibilidade do conector com o WhatsApp.
 
