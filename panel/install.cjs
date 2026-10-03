@@ -8,7 +8,7 @@ const {configuredRun}=require('./network.cjs');
 const target = '/data/data/com.termux/files/home/whatsapp-onibus-rota-1-android';
 const stage = path.resolve(__dirname,'..');
 if (!stage.startsWith(target + '/.incoming/')) throw Error('Instalador deve executar a partir da área de preparação.');
-const files = ['panel/model.cjs','panel/server.cjs','panel/whatsapp.cjs','panel/network.cjs','panel/run.sh','panel/install.cjs','panel/public/index.html','panel/public/app.js','panel/public/style.css','panel/public/icon.svg','socket/auth.mjs','socket/groups.mjs','socket/groups.test.mjs','socket/mode.mjs','socket/mode.test.mjs','socket/test-send.mjs','test/panel.test.cjs','test/whatsapp-panel.test.cjs','test/panel-network.test.cjs'];
+const files = ['panel/model.cjs','panel/server.cjs','panel/whatsapp.cjs','panel/network.cjs','panel/run.sh','panel/install.cjs','panel/public/index.html','panel/public/app.js','panel/public/style.css','panel/public/icon.svg','socket/auth.mjs','socket/groups.mjs','socket/groups.test.mjs','socket/mode.mjs','socket/mode.test.mjs','socket/test-send.mjs','socket/send.test.mjs','test/panel.test.cjs','test/whatsapp-panel.test.cjs','test/panel-network.test.cjs'];
 const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const protectedFiles = ['config.json','runtime/state.json'];
 const before = protectedFiles.map(file => digest(path.join(target,file)));

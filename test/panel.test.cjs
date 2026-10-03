@@ -19,6 +19,15 @@ test('frontend retains all bound controls and unique element IDs', () => {
   assert.ok(css.includes('prefers-reduced-motion:reduce'));
   assert.ok(css.includes(':focus-visible'));
 });
+
+test('panel installation includes every staged connector regression test',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../panel/install.cjs'),'utf8');
+  const manifest=source.match(/const files = \[([^\n]+)\];/)[1];
+  for(const file of ['socket/send.test.mjs','socket/groups.test.mjs','socket/mode.test.mjs','test/panel.test.cjs','test/whatsapp-panel.test.cjs','test/panel-network.test.cjs']){
+    assert.ok(manifest.includes("'"+file+"'"),'Missing installed test: '+file);
+    assert.equal(fs.statSync(path.join(__dirname,'..',file)).isFile(),true);
+  }
+});
 test('validation rejects privileged fields, impossible dates and invalid schedules', () => {
   assert.throws(() => model.validateChanges({ sendingEnabled: true }));
   assert.throws(() => model.validateChanges({ pausedDates: ['2026-02-30'] }));
