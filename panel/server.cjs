@@ -56,6 +56,8 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
   const audit = (action, details = {}) => fs.appendFileSync(path.join(runtime, 'panel-audit.jsonl'), JSON.stringify({ timestamp: new Date().toISOString(), action, ...details }) + '\n', { mode: 0o600 });
   let mutation = Promise.resolve();
   const serialize = fn => { const result = mutation.then(fn); mutation = result.catch(() => {}); return result; };
+  let authentication = Promise.resolve();
+  const serializeAuth = fn => { const result = authentication.then(fn); authentication = result.catch(() => {}); return result; };
   const maintenance = setInterval(() => {
     const now = Date.now();
     for (const [key, item] of sessions) if (item.expires < now) sessions.delete(key);
@@ -69,9 +71,12 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
     };
     const readBody = async () => {
       if (!String(req.headers['content-type']).startsWith('application/json')) throw fail('Use JSON.', 415);
-      let body = '';
-      for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body) > 16384) throw fail('Pedido muito grande.', 413); }
-      try { return JSON.parse(body || '{}'); } catch { throw fail('Pedido inválido.'); }
+      const chunks = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > 16384) throw fail('Pedido muito grande.', 413); chunks.push(chunk); }
+      let body;
+      try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw fail('Pedido inválido.'); }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw fail('Pedido inválido.');
+      return body;
     };
     try {
       const allowedHost = `${host}:${server.address().port}`;
@@ -92,22 +97,37 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
       if (url.pathname === '/api/login' && req.method === 'POST') {
         const body = await readBody();
         const ip = req.socket.remoteAddress;
-        const attempt = attempts.get(ip) || { count: 0, until: Date.now() + 300000 };
+        const existing = attempts.get(ip);
+        const attempt = existing && existing.until > Date.now() ? existing : { count: 0, pending: 0, until: Date.now() + 300000 };
         if (attempt.count >= 8) throw fail('Muitas tentativas. Aguarde cinco minutos.', 429);
-        if (typeof body.password !== 'string' || body.password.length > 200 || !await validPassword(body.password, credentials())) {
-          attempt.count++; attempts.set(ip, attempt); throw fail('Senha incorreta.', 401);
-        }
-        attempts.delete(ip);
-        const token = crypto.randomBytes(32).toString('hex'), csrf = crypto.randomBytes(24).toString('hex');
-        if (sessions.size >= 100) sessions.delete(sessions.keys().next().value);
-        sessions.set(token, { csrf, expires: Date.now() + 12 * 3600000 });
-        res.setHeader('Set-Cookie', `rota_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200`);
-        respond(200, { csrf }); return;
+        // Reserve before the first await so concurrent requests share one budget.
+        attempt.count++; attempt.pending++; attempts.set(ip, attempt);
+        await serializeAuth(async () => {
+          let verified = false;
+          try {
+            if (typeof body.password !== 'string' || body.password.length > 200 || !await validPassword(body.password, credentials())) throw fail('Senha incorreta.', 401);
+            verified = true;
+          } finally {
+            attempt.pending--;
+            if (verified && attempts.get(ip) === attempt) {
+              attempt.count = attempt.pending;
+              if (!attempt.count) attempts.delete(ip);
+            }
+          }
+          const token = crypto.randomBytes(32).toString('hex'), csrf = crypto.randomBytes(24).toString('hex');
+          if (sessions.size >= 100) sessions.delete(sessions.keys().next().value);
+          sessions.set(token, { csrf, expires: Date.now() + 12 * 3600000 });
+          res.setHeader('Set-Cookie', `rota_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200`);
+          respond(200, { csrf });
+        }); return;
       }
       const token = req.headers.cookie?.match(/(?:^|;\s*)rota_session=([a-f0-9]{64})(?:;|$)/)?.[1];
       const session = sessions.get(token);
-      if (!session || session.expires < Date.now()) throw fail('Entre no painel para continuar.', 401);
-      if (req.method !== 'GET' && req.headers['x-csrf-token'] !== session.csrf) throw fail('Sessão inválida. Entre novamente.', 403);
+      const requireSession = () => {
+        if (!session || sessions.get(token) !== session || session.expires < Date.now()) throw fail('Entre no painel para continuar.', 401);
+        if (req.method !== 'GET' && req.headers['x-csrf-token'] !== session.csrf) throw fail('Sessão inválida. Entre novamente.', 403);
+      };
+      requireSession();
       if (url.pathname === '/api/session' && req.method === 'GET') { respond(200, { csrf: session.csrf }); return; }
       if (url.pathname === '/api/logout' && req.method === 'POST') {
         sessions.delete(token); res.setHeader('Set-Cookie', 'rota_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); respond(200, { ok: true }); return;
@@ -118,18 +138,22 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
         const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : null;
         const deliveries = Object.entries(state?.deliveries || {}).map(([key, r]) => ({ key, group: r.group || key.split('|')[1], status: r.status, timestamp: r.timestamp || r.attemptedAt, confirmedAt: r.confirmedAt, messageId: r.messageId, text: r.text, error: typeof r.error === 'string' ? r.error.slice(0, 300) : undefined })).sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp))).slice(0, 100);
         const testDir = path.join(root, 'socket/runtime');
-        if (fs.existsSync(testDir)) for (const file of fs.readdirSync(testDir).filter(x => x === 'test-send.json' || /^test-[a-f0-9-]{36}\.json$/.test(x)).slice(-50)) {
+        const tests = [];
+        if (fs.existsSync(testDir)) for (const file of fs.readdirSync(testDir).filter(x => x === 'test-send.json' || /^test-[a-f0-9-]{36}\.json$/.test(x))) {
           const record = JSON.parse(fs.readFileSync(path.join(testDir, file), 'utf8'));
-          deliveries.push({ ...record, key: file, test: true });
+          tests.push({ ...record, key: file, test: true });
         }
+        tests.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+        deliveries.push(...tests.slice(0, 50));
         deliveries.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
         let health; try { health = await callService('status'); } catch { health = { healthy: false, schedulerRunning: false }; }
-        respond(200, { config: c, revision: model.revision(c), health, nextRun: model.nextRun(c), today: lib.getDateKey(c), preview: lib.buildMessage(c), history: deliveries.slice(0, 100), events: model.tailJson(path.join(root, 'socket/runtime/events.jsonl')), now: new Date().toISOString() }); return;
+        respond(200, { config: { ...c, pausedDates: c.pausedDates || [] }, revision: model.revision(c), health, nextRun: model.nextRun(c), today: lib.getDateKey(c), preview: lib.buildMessage(c), history: deliveries.slice(0, 100), events: model.tailJson(path.join(root, 'socket/runtime/events.jsonl')), now: new Date().toISOString() }); return;
       }
       if (url.pathname === '/api/config' && req.method === 'PUT') {
         const body = await readBody();
         let changes; try { changes = model.validateChanges(body.changes); } catch (error) { throw fail(error.message); }
         await serialize(async () => {
+          requireSession();
           const current = config(); if (model.revision(current) !== body.revision) throw fail('A configuração mudou. Atualize o painel antes de salvar.', 409);
           const next = lib.validateConfig({ ...current, ...changes });
           model.durableWrite(path.join(runtime, 'panel-config-backup.json'), current);
@@ -140,12 +164,14 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
       if (url.pathname === '/api/enabled' && req.method === 'POST') {
         const body = await readBody(); if (typeof body.enabled !== 'boolean') throw fail('Ação inválida.');
         await serialize(async () => {
+          requireSession();
           const current = config(); if (model.revision(current) !== body.revision) throw fail('A configuração mudou. Atualize o painel.', 409);
           if (body.enabled) {
             const health = await callService('start');
             if (!health.healthy) throw fail('O executor não está saudável. Consulte o estado do servidor.', 503);
           }
           const latest = config();
+          requireSession();
           if (model.revision(latest) !== body.revision) throw fail('A configuração mudou durante a operação. Atualize o painel.', 409);
           model.durableWrite(path.join(root, 'config.json'), { ...latest, sendingEnabled: body.enabled });
           audit(body.enabled ? 'enabled' : 'disabled');
@@ -153,12 +179,17 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
       }
       if (url.pathname === '/api/password' && req.method === 'POST') {
         const body = await readBody();
-        if (typeof body.newPassword !== 'string' || body.newPassword.length < 12 || body.newPassword.length > 200 || typeof body.oldPassword !== 'string' || body.oldPassword.length > 200 || !await validPassword(body.oldPassword, credentials())) throw fail('Confira a senha atual e use pelo menos 12 caracteres na nova senha.');
-        model.durableWrite(authPath, await hashPassword(body.newPassword));
-        sessions.clear();
-        const initial = path.join(runtime, 'panel-access.txt');
-        if (fs.existsSync(initial)) fs.unlinkSync(initial);
-        audit('password_changed'); respond(200, { ok: true }); return;
+        await serializeAuth(async () => {
+          requireSession();
+          if (typeof body.newPassword !== 'string' || body.newPassword.length < 12 || body.newPassword.length > 200 || typeof body.oldPassword !== 'string' || body.oldPassword.length > 200 || !await validPassword(body.oldPassword, credentials())) throw fail('Confira a senha atual e use pelo menos 12 caracteres na nova senha.');
+          const auth = await hashPassword(body.newPassword);
+          requireSession();
+          model.durableWrite(authPath, auth);
+          sessions.clear();
+          const initial = path.join(runtime, 'panel-access.txt');
+          if (fs.existsSync(initial)) fs.unlinkSync(initial);
+          audit('password_changed');
+        }); respond(200, { ok: true }); return;
       }
       if (url.pathname === '/api/test/prepare' && req.method === 'POST') {
         const c = config();
@@ -168,6 +199,7 @@ async function createPanel({ root = path.resolve(__dirname, '..'), host = '127.0
       }
       if (url.pathname === '/api/test/send' && req.method === 'POST') {
         const body = await readBody();
+        requireSession();
         const challenge = session.challenge;
         if (!challenge || challenge.id !== body.challenge || challenge.expires < Date.now()) throw fail('Confirmação expirada. Abra o teste novamente.', 409);
         session.challenge = null;

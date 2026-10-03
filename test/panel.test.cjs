@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const http = require('node:http');
+const vm = require('node:vm');
 const { createPanel } = require('../panel/server.cjs');
 const model = require('../panel/model.cjs');
 const base = { sendingEnabled: true, timezone: 'America/Fortaleza', productionGroup: 'Grupo Exemplo da Rota', testGroup: 'Grupo', studentLines: ['1. Participante Exemplo - Instituição Exemplo'], pausedDates: [], schedule: { weekdays: ['Mon','Tue','Thu','Fri'], hour: 2, minute: 0, graceMinutes: 20 } };
@@ -73,4 +75,139 @@ test('API protects sessions, revision, configuration, tests and password', async
   assert.equal(fs.existsSync(path.join(root,'runtime/panel-access.txt')),false);
   assert.equal((await request('login','POST',{password})).status,401);
   assert.equal((await request('login','POST',{password:'fixture-password-new-123'})).status,200);
+});
+
+async function fixture(t, config = base) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(),'rota-panel-regression-'));
+  model.durableWrite(path.join(root,'config.json'),config);
+  model.durableWrite(path.join(root,'runtime/state.json'),{version:1,deliveries:{}});
+  const server = await createPanel({root,host:'127.0.0.1',port:0,service:async()=>({healthy:true})});
+  t.after(async()=>{server.closeAllConnections();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});});
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const password = fs.readFileSync(path.join(root,'runtime/panel-access.txt'),'utf8').match(/Senha inicial: (.+)/)[1];
+  const request = async(route,method='GET',body,session={})=>{
+    const r=await fetch(origin+'/api/'+route,{method,headers:{Origin:origin,'Content-Type':'application/json',Cookie:session.cookie||'','X-CSRF-Token':session.csrf||''},...(body===undefined?{}:{body:JSON.stringify(body)})});
+    return {status:r.status,body:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};
+  };
+  const login=async(pass=password)=>{const r=await request('login','POST',{password:pass});return {...r,csrf:r.body.csrf};};
+  return {root,origin,password,request,login};
+}
+test('parallel login failures reserve the shared budget before hashing',async t=>{
+  const f=await fixture(t);
+  const responses=await Promise.all(Array.from({length:16},()=>f.login('wrong-fixture-password')));
+  assert.equal(responses.filter(r=>r.status===401).length,8);
+  assert.equal(responses.filter(r=>r.status===429).length,8);
+  assert.equal((await f.login('another-invalid-password')).status,429);
+});
+test('successful login preserves reservations for concurrent failed logins',async t=>{
+  const f=await fixture(t);
+  const mixed=await Promise.all([f.login(),...Array.from({length:7},()=>f.login('wrong-fixture-password'))]);
+  assert.equal(mixed[0].status,200);assert.equal(mixed.filter(r=>r.status===401).length,7);
+  const subsequent=await Promise.all(Array.from({length:9},()=>f.login('wrong-fixture-password')));
+  assert.equal(subsequent.filter(r=>r.status===401).length,1);
+  assert.equal(subsequent.filter(r=>r.status===429).length,8);
+});
+test('only one concurrent password change succeeds and old login stays revoked',async t=>{
+  const f=await fixture(t),session=await f.login();
+  const responses=await Promise.all(['fixture-new-password-A','fixture-new-password-B'].map(newPassword=>f.request('password','POST',{oldPassword:f.password,newPassword},session)));
+  assert.deepEqual(responses.map(r=>r.status).sort(),[200,401]);
+  assert.equal((await f.request('dashboard','GET',undefined,session)).status,401);
+  assert.equal((await f.login()).status,401);
+  const passwords=['fixture-new-password-A','fixture-new-password-B'];
+  const changed=passwords[responses.findIndex(r=>r.status===200)];
+  assert.equal((await f.login(changed)).status,200);
+});
+test('login queued during password rotation cannot revive an old-password session',async t=>{
+  const f=await fixture(t),session=await f.login();
+  const change=f.request('password','POST',{oldPassword:f.password,newPassword:'fixture-rotated-password'},session);
+  await new Promise(r=>setTimeout(r,15));
+  const stale=f.login();
+  assert.equal((await change).status,200);
+  assert.equal((await stale).status,401);
+  assert.equal((await f.login('fixture-rotated-password')).status,200);
+});
+test('UTF-8 split across TCP chunks is decoded only after reassembly',async t=>{
+  const f=await fixture(t),session=await f.login(),dash=await f.request('dashboard','GET',undefined,session);
+  const body=Buffer.from(JSON.stringify({revision:dash.body.revision,changes:{productionGroup:'Instituição teste'}}));
+  const split=body.indexOf(Buffer.from('ç'))+1;
+  const response=await new Promise((resolve,reject)=>{
+    const req=http.request(f.origin+'/api/config',{method:'PUT',headers:{Origin:f.origin,Cookie:session.cookie,'X-CSRF-Token':session.csrf,'Content-Type':'application/json'}},r=>{r.resume();r.on('end',()=>resolve(r.statusCode));});
+    req.on('error',reject);req.write(body.subarray(0,split));setTimeout(()=>req.end(body.subarray(split)),15);
+  });
+  assert.equal(response,200);
+  assert.equal((await f.request('dashboard','GET',undefined,session)).body.config.productionGroup,'Instituição teste');
+  assert.equal((await f.request('config','PUT',null,session)).status,400);
+});
+test('test history is ordered chronologically before its record limit',async t=>{
+  const f=await fixture(t),session=await f.login(),latest='test-00000000-0000-4000-8000-000000000001.json';
+  model.durableWrite(path.join(f.root,'socket/runtime',latest),{group:'fixture',status:'server_accepted',timestamp:'2030-01-01T00:00:00Z'});
+  for(let i=1;i<=50;i++)model.durableWrite(path.join(f.root,'socket/runtime',`test-ffffffff-ffff-4fff-8fff-${String(i).padStart(12,'0')}.json`),{group:'fixture',status:'server_accepted',timestamp:'2020-01-01T00:00:00Z'});
+  const history=(await f.request('dashboard','GET',undefined,session)).body.history;
+  assert.equal(history.length,50);assert.equal(history[0].key,latest);
+});
+test('legacy config without optional pausedDates still has a working dashboard',async t=>{
+  const config={...base};delete config.pausedDates;
+  const f=await fixture(t,config),session=await f.login();
+  const r=await f.request('dashboard','GET',undefined,session);
+  assert.equal(r.status,200);assert.deepEqual(r.body.config.pausedDates,[]);
+  assert.equal(r.body.revision,model.revision(config));
+});
+
+test('logout while a password change is hashing cancels that pending write',async t=>{
+  const f=await fixture(t),session=await f.login();
+  const change=f.request('password','POST',{oldPassword:f.password,newPassword:'fixture-cancelled-password'},session);
+  await new Promise(r=>setTimeout(r,10));
+  assert.equal((await f.request('logout','POST',{},session)).status,200);
+  assert.equal((await change).status,401);
+  assert.equal((await f.login()).status,200);
+  assert.equal((await f.login('fixture-cancelled-password')).status,401);
+});
+
+async function uiFixture() {
+  const elements=new Map();
+  const node=()=>({textContent:'',value:'',hidden:false,disabled:false,checked:false,children:[],classList:{toggle(){}},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},setAttribute(){},querySelector(){return node();},showModal(){},close(){}});
+  const el=id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id);};
+  const weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(value=>({...node(),value}));
+  const state={config:JSON.parse(JSON.stringify(base)),offline:false};
+  const data=()=>({config:JSON.parse(JSON.stringify(state.config)),revision:model.revision(state.config),health:{healthy:true,heartbeatAgeSeconds:1},history:[],preview:'fixture',nextRun:null,now:new Date().toISOString()});
+  const context={document:{getElementById:el,createElement:node,createTextNode:text=>({textContent:text}),querySelectorAll:selector=>selector==='.day-picker input'?weekdays:selector==='.day-picker input:checked'?weekdays.filter(x=>x.checked):[]},window:{addEventListener(){},confirm:()=>true},Intl,Date,FormData:class{},setTimeout:()=>0,clearTimeout(){},console,
+    fetch:async(url,options)=>{
+      if(state.offline)throw Error('fixture offline');
+      let result={csrf:'fixture-csrf'},status=200;
+      if(url==='/api/dashboard')result=data();
+      if(url==='/api/config'){
+        const body=JSON.parse(options.body);
+        if(body.revision!==model.revision(state.config)){status=409;result={error:'fixture conflict'};}
+        else{state.config={...state.config,...body.changes};result={ok:true};}
+      }
+      return{ok:status===200,status,json:async()=>result};
+    }};
+  vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../panel/public/app.js'),'utf8'),context);
+  await new Promise(r=>setImmediate(r));
+  return{state,el,context,refresh:()=>vm.runInContext('refresh()',context),submit:async()=>{el('settings-form').onsubmit({preventDefault(){}});await new Promise(r=>setImmediate(r));}};
+}
+test('UI preserves dirty edits across pauses and saves against the updated revision',async()=>{
+  const f=await uiFixture();f.el('student-lines').value='1. Edited fixture';f.el('settings-form').oninput();
+  f.state.config.pausedDates=['2026-10-05'];await f.refresh();
+  assert.equal(f.el('student-lines').value,'1. Edited fixture');assert.equal(f.el('form-conflict').hidden,true);
+  await f.submit();assert.deepEqual(f.state.config.studentLines,['1. Edited fixture']);assert.deepEqual(f.state.config.pausedDates,['2026-10-05']);
+});
+test('UI surfaces intersecting server changes and explicitly recovers the form',async()=>{
+  const f=await uiFixture();f.el('student-lines').value='1. Unsaved fixture';f.el('settings-form').oninput();
+  f.state.config.studentLines=['1. External fixture'];await f.refresh();
+  assert.equal(f.el('form-conflict').hidden,false);await f.submit();
+  assert.deepEqual(f.state.config.studentLines,['1. External fixture']);assert.equal(f.el('student-lines').value,'1. Unsaved fixture');
+  await f.el('form-reload').onclick();assert.equal(f.el('student-lines').value,'1. External fixture');assert.equal(f.el('form-conflict').hidden,true);
+});
+test('offline UI refresh reports failure, never a success toast',async()=>{
+  const f=await uiFixture();f.state.offline=true;await f.el('refresh').onclick();
+  assert.equal(f.el('connection-warning').hidden,false);assert.notEqual(f.el('toast').textContent,'Estado atualizado.');assert.equal(f.el('toast').textContent,'fixture offline');
+});
+
+test('offline enable action does not reenable a control with stale state',async()=>{
+  const f=await uiFixture();f.state.offline=true;await f.el('refresh').onclick();
+  await f.el('toggle-enabled').onclick();
+  assert.equal(f.el('connection-warning').hidden,false);
+  assert.equal(f.el('toggle-enabled').disabled,true);
+  assert.equal(f.el('toast').textContent,'fixture offline');
 });

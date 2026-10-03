@@ -46,7 +46,7 @@ function nextRun(config, now = new Date()) {
     const key = day.toISOString().slice(0, 10);
     // This installation uses the fixed Fortaleza offset (-03:00).
     const candidate = new Date(`${key}T${String(config.schedule.hour).padStart(2, '0')}:${String(config.schedule.minute).padStart(2, '0')}:00-03:00`);
-    if (candidate > now && config.schedule.weekdays.includes(days[day.getUTCDay()]) && !config.pausedDates.includes(key)) return candidate.toISOString();
+    if (candidate > now && config.schedule.weekdays.includes(days[day.getUTCDay()]) && !(config.pausedDates || []).includes(key)) return candidate.toISOString();
   }
   return null;
 }

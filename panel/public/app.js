@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-let csrf = '', dashboard, formRevision, dirty = false, busy = false, challenge, pollTimer;
+let csrf = '', dashboard, formRevision, formConfig, dirty = false, busy = false, challenge, pollTimer;
 const fmt = value => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Fortaleza', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
 const dateFmt = value => value.split('-').reverse().join('/');
 function toast(message, error = false) { $('toast').textContent = message; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 6500); }
@@ -28,8 +28,13 @@ function render(d, fillForms = false) {
   $('toggle-enabled').disabled = false; $('toggle-enabled').textContent = c.sendingEnabled ? 'Desativar envios automáticos' : 'Ativar envios automáticos';
   $('message-preview').textContent = d.preview; $('destination').textContent = c.productionGroup;
   $('connection-warning').hidden = h.healthy; $('connection-warning').textContent = 'O executor precisa de atenção. Não trate o agendamento ativo como garantia de envio.';
+  const formKeys = ['productionGroup', 'testGroup', 'studentLines', 'schedule'];
+  const serverFieldsUnchanged = formConfig && formKeys.every(key => JSON.stringify(c[key]) === JSON.stringify(formConfig[key]));
+  if (dirty && serverFieldsUnchanged) formRevision = d.revision;
+  $('form-conflict').hidden = fillForms || !dirty || serverFieldsUnchanged;
   if (fillForms || !dirty) {
     formRevision = d.revision;
+    formConfig = JSON.parse(JSON.stringify(c));
     $('production-group').value = c.productionGroup; $('test-group').value = c.testGroup;
     $('schedule-time').value = `${String(c.schedule.hour).padStart(2,'0')}:${String(c.schedule.minute).padStart(2,'0')}`;
     $('grace').value = c.schedule.graceMinutes; $('student-lines').value = c.studentLines.join('\n');
@@ -59,15 +64,16 @@ function render(d, fillForms = false) {
 async function refresh(fillForms = false) {
   clearTimeout(pollTimer);
   try { render(await api('dashboard'), fillForms); }
-  catch (error) { $('connection-warning').hidden = false; $('connection-warning').textContent = 'Sem comunicação com o servidor. Confira internet e Tailscale. Isso não comprova que a automação parou.'; $('toggle-enabled').disabled = true; if (fillForms) throw error; }
-  finally { if (csrf) pollTimer = setTimeout(() => refresh(), 30000); }
+  catch (error) { $('connection-warning').hidden = false; $('connection-warning').textContent = 'Sem comunicação com o servidor. Confira internet e Tailscale. Isso não comprova que a automação parou.'; $('toggle-enabled').disabled = true; throw error; }
+  finally { if (csrf) pollTimer = setTimeout(() => refresh().catch(() => {}), 30000); }
 }
 async function save(changes, revision = dashboard.revision) { await api('config', 'PUT', { revision, changes }); await refresh(); }
 $('login-form').onsubmit = async event => { event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true; $('login-error').textContent = ''; try { const r = await api('login','POST',{ password: new FormData(event.target).get('password') }); csrf = r.csrf; event.target.reset(); dirty = false; loggedIn(true); await refresh(true); } catch(error) { $('login-error').textContent = error.message; } finally { button.disabled = false; } };
 $('refresh').onclick = () => action(async () => { await refresh(); toast('Estado atualizado.'); });
 $('logout').onclick = () => action(async () => { await api('logout','POST',{}); loggedIn(false); });
-$('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = false; } });
+$('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = !$('connection-warning').hidden; } });
 $('settings-form').oninput = () => { dirty = true; };
+$('form-reload').onclick = () => action(async () => { if (!window.confirm('Descartar as alterações não salvas e carregar os campos atuais do servidor?')) return; await refresh(true); dirty = false; toast('Campos atuais carregados.'); });
 $('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ productionGroup: $('production-group').value, testGroup: $('test-group').value, studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); dirty = false; await refresh(true); toast('Agendamento e mensagem salvos.'); }); };
 $('pause-form').onsubmit = event => { event.preventDefault(); action(async () => { await save({ pausedDates: [...dashboard.config.pausedDates, $('pause-date').value] }); event.target.reset(); toast('Data pausada.'); }); };
 $('test-open').onclick = () => action(async () => { const p = await api('test/prepare','POST',{}); challenge = p.challenge; $('confirm-group').textContent = p.group; $('confirm-text').textContent = p.text; $('test-confirm').disabled = false; $('test-dialog').showModal(); });
