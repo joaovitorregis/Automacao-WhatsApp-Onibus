@@ -7,6 +7,17 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const source=fs.readFileSync(path.join(__dirname,'../manage.cjs'),'utf8');
 const files=[...source.match(/const files = \[([\s\S]*?)\];/)[1].matchAll(/'([^']+)'/g)].map(match=>match[1]);
+test('deployment manifest resolves every distributed file in the real checkout',()=>{
+  const root=path.resolve(__dirname,'..');
+  for(const file of files) {
+    if(file==='config.json') {
+      assert.equal(fs.statSync(path.join(root,'config.example.json')).isFile(),true);
+      continue;
+    }
+    assert.equal(fs.existsSync(path.join(root,file)),true,`Missing deployment file: ${file}`);
+    assert.equal(fs.statSync(path.join(root,file)).isFile(),true,file);
+  }
+});
 function fixture(t) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'rota-manage-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
