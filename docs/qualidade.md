@@ -10,4 +10,12 @@
 | Recuperação | Reinício e backup possuem evidência; falhas de rede têm comportamento seguro | Ensaio real documentado em `validacao-recuperacao.md`; testes de transporte simulado cobrem queda antes e depois da tentativa. Perda prolongada de rede real não foi validada. |
 | Manutenção | Fonte de desenvolvimento identificada, instalação comparada e testes reproduzíveis | Manutenção autorizada em 03/10/2026 alinhou `src/lib.cjs`, `manage.cjs`, instalador e testes. Os 89 testes passaram no A10s; configuração, entregas e autenticação mantiveram seus hashes. Serviços retomados saudáveis e painel HTTP 200. O atalho privado do notebook delega à cópia atual e foi validado com Status. Partida privada difere intencionalmente; scripts de prévia e ensaio não são necessários em produção. |
 
-Não considerar esta revisão concluída enquanto houver pendências. Não reiniciar serviços, desconectar a rede ou restaurar sobre produção somente para obter uma marca de aprovação. Esses ensaios exigem janela autorizada e preservação do registro de entregas.
+## Auditoria final de 03/10/2026
+
+As cinco prioridades foram verificadas com testes isolados, ensaios em Chromium, registros privados do reinício/restauração e consulta à instalação ativa. A suíte atual passou no A10s; no Windows, 89 testes passaram e o teste de trava Linux foi ignorado. A CI passou em Windows e Ubuntu.
+
+A comparação de todos os arquivos JavaScript, HTML, CSS e shell publicados encontrou apenas três diferenças esperadas: `panel/run.sh` usa o endereço e os caminhos privados; `panel/preview.cjs` e `scripts/maintenance/test-stall.cjs` são ferramentas de desenvolvimento, não componentes do serviço ativo. Os demais arquivos comparados, incluindo testes, coincidem por SHA-256.
+
+A validação de rede foi proporcional e não destrutiva: transporte simulado antes/depois da tentativa e navegador offline/online. Não inclui desligamento prolongado da internet real do aparelho. O QR visual era fictício; a sessão válida não foi removida para forçar uma nova vinculação. Esses limites não são prova de falha nem garantia de recuperação em qualquer condição.
+
+Configuração, registros antigos e sessão foram preservados. Nenhuma mensagem real foi enviada durante esta revisão. Novos ensaios com desconexão real, reinício ou restauração sobre produção exigem janela autorizada e preservação do registro de entregas.
