@@ -20,6 +20,14 @@ test('frontend retains all bound controls and unique element IDs', () => {
   assert.ok(css.includes(':focus-visible'));
 });
 
+test('interface avoids redundant infrastructure and introductory copy',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../panel/public/index.html'),'utf8');
+  for(const text of ['Rede privada','Painel privado','Painel de controle','Tailscale','Acesse os horários','Acompanhe a programação','Data preenchida automaticamente']) assert.ok(!html.includes(text),text);
+  assert.ok(html.includes('id="connection-warning"'));
+  assert.ok(html.includes('Mensagem real'));
+  assert.ok(html.includes('confira o WhatsApp antes de repetir'));
+});
+
 test('panel installation includes every staged connector regression test',()=>{
   const source=fs.readFileSync(path.join(__dirname,'../panel/install.cjs'),'utf8');
   const manifest=source.match(/const files = \[([^\n]+)\];/)[1];

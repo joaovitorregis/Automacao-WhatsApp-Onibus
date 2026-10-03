@@ -89,7 +89,7 @@ function render(d, fillForms = false) {
     const confirmation = cell(fmt(record.confirmedAt)); if (record.messageId) { const id = document.createElement('small'); id.textContent = 'ID ' + record.messageId; confirmation.append(id); }
     $('history-body').append(row);
   }
-  $('updated-at').textContent = `Última consulta: ${fmt(d.now)} · A automação roda no celular, mesmo com este painel fechado.`;
+  $('updated-at').textContent = `Atualizado em ${fmt(d.now)}`;
 }
 async function refresh(fillForms = false) {
   clearTimeout(pollTimer);
@@ -113,7 +113,8 @@ function renderWhatsApp(state) {
   $('wa-guidance').textContent=enabled ? 'Desative os envios aqui para verificar a conta e carregar os grupos. Nenhuma mensagem será enviada pela verificação.' : active ? 'Verificação em andamento. Aguarde para selecionar os grupos.' : groups.length ? 'Selecione os destinos abaixo. Ao terminar, reative os envios em Visão geral.' : 'Envios desativados. Clique em “Verificar conta e grupos” para carregar os destinos. Use o QR somente se precisar vincular a conta.';
   const labels={unknown:'Não verificada',checking:'Verificando…',qr:'Aguardando leitura do QR',verified:'Conta verificada',disconnected:'Desconectada',failed:'Verificação não concluída',expired:'Verificação expirada'};
   $('wa-status').textContent=labels[state.status] || 'Não verificada';
-  $('wa-detail').textContent=state.timestamp ? 'Última atualização: '+fmt(state.timestamp)+'. A conexão de verificação é encerrada ao concluir.' : 'Verificação sob demanda; não comprova entrega.';
+  $('wa-detail').textContent=state.timestamp ? 'Atualizado em '+fmt(state.timestamp) : '';
+  $('wa-detail').hidden=!state.timestamp;
   const age=Date.now()-Date.parse(state.timestamp);
   const show=state.status==='qr' && state.active && age>=0 && age<300000 && typeof state.qr==='string' && state.qr.startsWith('data:image/png;base64,');
   $('wa-qr').hidden=!show;
