@@ -5,6 +5,20 @@ const fmt = value => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'Ameri
 const dateFmt = value => value.split('-').reverse().join('/');
 function toast(message, error = false) { $('toast').textContent = message; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 6500); }
 let waTimer,qrExpiry;
+let panelOnline=true;
+const offlineControls=new Map();
+function connectionState(online) {
+  panelOnline=online;
+  const controls=document.querySelectorAll('#app-view button:not(#logout):not(#refresh), #whatsapp select');
+  if(!online) {
+    for(const control of controls) { if(!offlineControls.has(control)) offlineControls.set(control,control.disabled); control.disabled=true; }
+    $('wa-status').textContent='Sem consulta atual';
+    $('wa-guidance').textContent='Sem comunicação com o servidor. Os destinos exibidos podem estar desatualizados. Reconecte e atualize o painel.';
+  } else {
+    for(const [control,disabled] of offlineControls) control.disabled=disabled;
+    offlineControls.clear();
+  }
+}
 function loggedIn(value) { $('login-view').hidden = value; $('app-view').hidden = !value; if (!value) { csrf = ''; clearTimeout(pollTimer); clearTimeout(waTimer); clearTimeout(qrExpiry); $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); } }
 async function api(url, method = 'GET', body) {
   const res = await fetch('/api/' + url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -12,7 +26,7 @@ async function api(url, method = 'GET', body) {
   if (!res.ok) { if (res.status === 401 && url !== 'login') loggedIn(false); throw Error(result.error || 'O servidor não respondeu.'); }
   return result;
 }
-async function action(fn) { if (busy) return; busy = true; try { await fn(); } catch (error) { toast(error.message, true); } finally { busy = false; } }
+async function action(fn) { if (busy) return; busy = true; try { await fn(); } catch (error) { toast(error.message, true); } finally { busy = false; if(!panelOnline) connectionState(false); } }
 function render(d, fillForms = false) {
   dashboard = d;
   const c = d.config, h = d.health;
@@ -65,8 +79,8 @@ function render(d, fillForms = false) {
 }
 async function refresh(fillForms = false) {
   clearTimeout(pollTimer);
-  try { render(await api('dashboard'), fillForms); }
-  catch (error) { $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); $('connection-warning').hidden = false; $('connection-warning').textContent = 'Sem comunicação com o servidor. Confira internet e Tailscale. Isso não comprova que a automação parou.'; $('toggle-enabled').disabled = true; throw error; }
+  try { const data=await api('dashboard'); connectionState(true); render(data, fillForms); }
+  catch (error) { $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); $('connection-warning').hidden = false; $('connection-warning').textContent = 'Sem comunicação com o servidor. Confira internet e Tailscale. Isso não comprova que a automação parou.'; $('toggle-enabled').disabled = true; connectionState(false); throw error; }
   finally { if (csrf) pollTimer = setTimeout(() => refresh().catch(() => {}), 30000); }
 }
 function renderWhatsApp(state) {
@@ -105,7 +119,7 @@ $('wa-disable').onclick=()=>action(async()=>{
 });
 async function pollWhatsApp() {
   clearTimeout(waTimer);
-  try { const state=await api('whatsapp'); if(!csrf) return; renderWhatsApp(state); if(state.active) waTimer=setTimeout(()=>pollWhatsApp().catch(()=>{}),2000); }
+  try { const state=await api('whatsapp'); if(!csrf || !panelOnline) return; renderWhatsApp(state); if(state.active) waTimer=setTimeout(()=>pollWhatsApp().catch(()=>{}),2000); }
   catch(error) { $('wa-status').textContent='Sem consulta atual'; $('wa-qr').hidden=true; $('wa-qr').removeAttribute('src'); throw error; }
 }
 $('wa-check').onclick=()=>action(async()=>{

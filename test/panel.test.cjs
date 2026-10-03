@@ -170,7 +170,7 @@ async function uiFixture() {
   const weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(value=>({...node(),value}));
   const state={config:JSON.parse(JSON.stringify(base)),offline:false};
   const data=()=>({config:JSON.parse(JSON.stringify(state.config)),revision:model.revision(state.config),health:{healthy:true,heartbeatAgeSeconds:1},history:[],preview:'fixture',nextRun:null,now:new Date().toISOString()});
-  const context={document:{getElementById:el,createElement:node,createTextNode:text=>({textContent:text}),querySelectorAll:selector=>selector==='.day-picker input'?weekdays:selector==='.day-picker input:checked'?weekdays.filter(x=>x.checked):[]},window:{addEventListener(){},confirm:()=>true},Intl,Date,FormData:class{},setTimeout:()=>0,clearTimeout(){},console,
+  const context={document:{getElementById:el,createElement:node,createTextNode:text=>({textContent:text}),querySelectorAll:selector=>selector==='.day-picker input'?weekdays:selector==='.day-picker input:checked'?weekdays.filter(x=>x.checked):selector.startsWith('#app-view button')?['toggle-enabled','wa-check','wa-pair','wa-disable','wa-production','wa-test','wa-save-production','wa-save-test','test-open'].map(el):[]},window:{addEventListener(){},confirm:()=>true},Intl,Date,FormData:class{},setTimeout:()=>0,clearTimeout(){},console,
     fetch:async(url,options)=>{
       if(state.offline)throw Error('fixture offline');
       let result={csrf:'fixture-csrf'},status=200;
@@ -222,6 +222,17 @@ test('UI surfaces intersecting server changes and explicitly recovers the form',
 test('offline UI refresh reports failure, never a success toast',async()=>{
   const f=await uiFixture();f.state.offline=true;await f.el('refresh').onclick();
   assert.equal(f.el('connection-warning').hidden,false);assert.notEqual(f.el('toast').textContent,'Estado atualizado.');assert.equal(f.el('toast').textContent,'fixture offline');
+});
+
+test('offline controls block operations, preserve edits and recover on refresh',async()=>{
+  const f=await uiFixture();f.el('student-lines').value='1. Unsaved offline';f.el('settings-form').oninput();
+  f.state.offline=true;await f.el('refresh').onclick();
+  for(const id of ['wa-check','wa-pair','wa-disable','wa-production','wa-test','test-open']) assert.equal(f.el(id).disabled,true,id);
+  assert.equal(f.el('wa-status').textContent,'Sem consulta atual');
+  assert.equal(f.el('student-lines').value,'1. Unsaved offline');
+  f.state.offline=false;await f.refresh();
+  assert.equal(f.el('test-open').disabled,false);
+  assert.equal(f.el('student-lines').value,'1. Unsaved offline');
 });
 
 test('offline enable action does not reenable a control with stale state',async()=>{
