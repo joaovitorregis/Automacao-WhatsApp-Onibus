@@ -5,6 +5,7 @@
   "description": "Automação de listas de transporte universitário, executada em celular Android com Termux.",
   "main": "src/automation.cjs",
   "scripts": {
+    "doctor": "node scripts/doctor.cjs",
     "test": "node --test test/*.test.cjs socket/*.test.mjs",
     "dry-run": "node src/automation.cjs --dry-run",
     "auth": "bash socket/run.sh",
