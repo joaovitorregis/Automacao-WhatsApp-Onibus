@@ -22,6 +22,8 @@ Após a manutenção, confira os destinos e reative manualmente os envios. O ins
 
 As funcionalidades foram inspiradas no [WA-AKG](https://github.com/mrifqidaffaaditya/WA-AKG), com implementação própria para a arquitetura existente, sem importar Next.js ou banco de dados.
 
+Validação operacional em 03/10/2026 no A10s: consulta real da sessão e listagem de grupos aprovadas; seleção por ID testada em configuração isolada. O fluxo de QR foi testado com imagem fictícia, incluindo login, ausência de cache e revogação de acesso após logout. Nova vinculação com QR real não foi testada, pois a sessão existente estava válida. A manutenção preservou configuração e histórico, sem transmitir mensagens, e os envios automáticos foram reabilitados ao terminar.
+
 ## Comandos do notebook
 
 Configure variáveis locais no PowerShell, usando os dados da sua instalação:
