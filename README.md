@@ -18,6 +18,7 @@ A execução no celular teve um envio agendado confirmado em 25/09/2026, às 02:
 - Registra o estado antes do envio e verifica o ACK do servidor.
 - Bloqueia repetições quando uma tentativa já existe ou seu resultado é incerto.
 - Oferece supervisor, trava de concorrência e recuperação do processo no Android.
+- Inclui o painel Rota: controle de envios, agenda, pausas por data, prévia da mensagem e histórico de confirmações.
 
 ACK confirma aceitação pelo servidor; não significa leitura pelos integrantes do grupo.
 
@@ -51,9 +52,19 @@ scheduler.cjs         agendador
 service.cjs           controle do supervisor
 config.example.json   configuração fictícia, com envios desativados
 docs/                 instalação e limites de operação
+panel/                painel web privado e interface responsiva
+painel.ps1            instalação e consulta pelo notebook
 ```
 
 ## Limites
+
+## Painel de controle Rota
+
+O painel foi desenvolvido e instalado no servidor Android. A interface foi verificada em desktop e telas estreitas; testes automatizados usam envio simulado, sem publicar mensagens reais. A configuração pública usa localhost por padrão e dados fictícios.
+
+O acesso operacional é pelo notebook na rede privada. Não foi configurado acesso público pela internet. Código no GitHub não hospeda o painel nem dá acesso ao WhatsApp.
+
+Veja [configuração e uso do painel](docs/painel-rota.md). O painel exige login, protege alterações com token de sessão e confirmação de teste, e mantém credenciais e registros fora do Git.
 
 O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. Não há registro de validação da retomada automática após reinicialização. A integração depende da compatibilidade do conector com o WhatsApp.
 
