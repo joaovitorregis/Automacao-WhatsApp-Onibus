@@ -177,6 +177,7 @@ async function uiFixture() {
       if(url==='/api/dashboard')result=data();
       if(url==='/api/config'){
         const body=JSON.parse(options.body);
+        if(state.beforeConfig) await state.beforeConfig();
         if(body.revision!==model.revision(state.config)){status=409;result={error:'fixture conflict'};}
         else{state.config={...state.config,...body.changes};result={ok:true};}
       }
@@ -205,12 +206,38 @@ test('schedule edits never overwrite group destinations or their IDs',async()=>{
   assert.ok(!html.includes('id="production-group"'));assert.ok(!html.includes('id="test-group"'));
 });
 
+test('edits made while saving remain unsaved and can be saved next',async()=>{
+  const f=await uiFixture();
+  f.el('student-lines').value='1. First edit';f.el('settings-form').oninput();
+  f.state.beforeConfig=async()=>{
+    f.el('student-lines').value='1. Later edit';f.el('settings-form').oninput();
+    f.state.beforeConfig=null;
+  };
+  await f.submit();
+  assert.deepEqual(f.state.config.studentLines,['1. First edit']);
+  assert.equal(f.el('student-lines').value,'1. Later edit');
+  assert.ok(f.el('toast').textContent.includes('ainda precisa ser salva'));
+  await f.submit();
+  assert.deepEqual(f.state.config.studentLines,['1. Later edit']);
+});
+
 test('empty group selectors explain verification and block selection',async()=>{
   const f=await uiFixture();
   assert.equal(f.el('wa-production').disabled,true);
   assert.equal(f.el('wa-save-test').disabled,true);
   assert.equal(f.el('wa-test').children[0].textContent,'Verifique a conta para carregar grupos');
   assert.equal(f.el('wa-disable').hidden,false);
+});
+
+test('history explains uncertainty, interrupted attempts and confirmation limits',async()=>{
+  const f=await uiFixture();
+  const explain=status=>vm.runInContext('deliveryExplanation('+JSON.stringify(status)+')',f.context);
+  assert.match(explain('sent'),/não comprova leitura/);
+  assert.match(explain('server_accepted'),/não comprova leitura/);
+  assert.match(explain('uncertain'),/não repete/);
+  assert.match(explain('attempting'),/interrupção/);
+  assert.match(explain('not_started'),/outras tentativas/);
+  assert.match(explain('unexpected'),/não comprova entrega/);
 });
 test('UI surfaces intersecting server changes and explicitly recovers the form',async()=>{
   const f=await uiFixture();f.el('student-lines').value='1. Unsaved fixture';f.el('settings-form').oninput();

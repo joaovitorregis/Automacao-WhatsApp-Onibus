@@ -47,11 +47,17 @@ Notebook ou SSH indisponível não prova falha do celular. Consulte novamente qu
 
 ## Atualização e retorno
 
+Use uma única cópia de desenvolvimento vinculada ao repositório GitHub. Confira `git remote -v`, `git status` e `git log -1` antes de publicar ou instalar. Cópias antigas de scripts no notebook não são atualizadas pelo GitHub automaticamente; executar um instalador de outra pasta pode recolocar código antigo no celular.
+
+Depois da instalação, compare os hashes dos arquivos alterados no notebook e no servidor e execute os testes isolados na instalação. Os scripts de partida têm endereço privado e caminhos do Termux e podem diferir dos modelos públicos; não os substitua por modelos genéricos para tornar todos os hashes iguais. Configuração pessoal, estado e autenticação nunca devem ser sincronizados a partir do repositório.
+
 Para o painel, use `painel.ps1 -Action Install` no notebook. O instalador testa o candidato usando as dependências existentes, verifica hashes e guarda backup. Preserva configuração e estado. Confira o status depois; um upload completo não é comprovação de saúde.
 
 Para o executor, não há atualização automática transacional. Planeje uma janela sem envio, bloqueie próximos envios, confirme que não há transmissão em andamento e obtenha backup privado consistente antes de substituir arquivos. Registre commit anterior e novo. Restaurar código não significa restaurar estado: nunca volte o registro de entregas para uma versão anterior que permita duplicações.
 
 ## Backup e recuperação
+
+Os testes isolados de rede em `socket/send.test.mjs` usam transporte simulado. Eles verificam que a indisponibilidade antes da tentativa permite nova execução quando a conexão volta e que uma queda depois do registro deixa o resultado incerto, impedindo duplicação. Isso não comprova recuperação da rede real do Android, do Tailscale ou do WhatsApp após perda prolongada de internet.
 
 Guarde código/commit, configuração, registro de entregas, autenticação socket e credencial do painel em armazenamento privado protegido. Uma cópia feita durante gravação pode ser inconsistente; obtenha um snapshot com processos escritores parados numa janela de manutenção. Não publique backups no GitHub.
 

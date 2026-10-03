@@ -7,6 +7,34 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { testSend } from './test-send.mjs';
 
+for(const phase of ['before-attempt','after-attempt']) test(`isolated network recovery preserves scheduled safety: ${phase}`,async()=>{
+  const base=fs.mkdtempSync(path.join(os.tmpdir(),'bus-network-recovery-'));
+  const root=path.join(base,'socket');fs.mkdirSync(root);fs.mkdirSync(path.join(base,'runtime'));
+  const local=new Date(Date.now()-3*3600000);
+  const config={sendingEnabled:true,productionGroup:'Fixture',testGroup:'Fixture Test',timezone:'America/Fortaleza',studentLines:['1. Fixture'],pausedDates:[],schedule:{weekdays:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],hour:local.getUTCHours(),minute:local.getUTCMinutes(),graceMinutes:60}};
+  fs.writeFileSync(path.join(base,'config.json'),JSON.stringify(config));
+  const stateFile=path.join(base,'runtime/state.json');fs.writeFileSync(stateFile,JSON.stringify({version:1,deliveries:{}}));
+  let online=false,calls=0;const ws=new EventEmitter();
+  const sock={ws,user:{id:'123456789:1@s.whatsapp.net'},groupFetchAllParticipating:async()=>{
+    if(!online && phase==='before-attempt') throw Error('fixture network unavailable');
+    return {g:{id:'12345@g.us',subject:'Fixture'}};
+  },sendMessage:async(_jid,_content,options)=>{
+    calls++;if(!online) throw Error('fixture connection lost');
+    ws.emit('CB:ack,class:message',{attrs:{id:options.messageId,class:'message'}});
+  }};
+  try {
+    await assert.rejects(testSend(sock,root,config,()=>{},true),/fixture/);
+    const first=JSON.parse(fs.readFileSync(stateFile));
+    assert.equal(Object.values(first.deliveries).length,phase==='before-attempt'?0:1);
+    if(phase==='after-attempt') assert.equal(Object.values(first.deliveries)[0].status,'uncertain');
+    online=true;await testSend(sock,root,config,()=>{},true);
+    const final=JSON.parse(fs.readFileSync(stateFile));
+    assert.equal(Object.values(final.deliveries)[0].status,phase==='before-attempt'?'sent':'uncertain');
+    assert.equal(calls,1,'restored network must not duplicate a recorded attempt');
+    assert.equal(ws.listenerCount('CB:ack,class:message'),0);
+  } finally {fs.rmSync(base,{recursive:true,force:true});}
+});
+
 for (const error of [undefined, '500']) test(`persist exact ACK outcome: ${error ?? 'success'}`, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bus-send-test-'));
   fs.mkdirSync(path.join(root, 'runtime'));

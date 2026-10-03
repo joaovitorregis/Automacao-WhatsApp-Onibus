@@ -1,8 +1,16 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let csrf = '', dashboard, formRevision, formConfig, dirty = false, busy = false, challenge, pollTimer;
+let editGeneration=0;
 const fmt = value => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Fortaleza', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
 const dateFmt = value => value.split('-').reverse().join('/');
+function deliveryExplanation(status) {
+  if(['sent','server_accepted'].includes(status)) return 'O servidor do WhatsApp confirmou o envio; isso não comprova leitura pelos participantes.';
+  if(status==='uncertain') return 'Não há confirmação conclusiva. Confira a conversa antes de qualquer novo envio; a automação não repete esta tentativa.';
+  if(status==='attempting') return 'Tentativa registrada, ainda sem confirmação. Este registro também pode indicar interrupção; confira a conversa antes de repetir.';
+  if(status==='not_started') return 'Esta tentativa não iniciou o envio. Confira o motivo registrado; isto não comprova que outras tentativas não enviaram.';
+  return 'Estado não reconhecido. Este registro não comprova entrega.';
+}
 function toast(message, error = false) { $('toast').textContent = message; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 6500); }
 let waTimer,qrExpiry;
 let panelOnline=true;
@@ -71,7 +79,8 @@ function render(d, fillForms = false) {
     const cell = value => { const td = document.createElement('td'); td.textContent = value || '—'; row.append(td); return td; };
     cell(fmt(record.timestamp)); const group = cell(record.group); if (record.test) { const tag = document.createElement('small'); tag.textContent = 'ENVIO DE TESTE'; group.append(tag); }
     const result = cell(''); result.textContent = ''; const badge = document.createElement('span'); badge.className = 'result' + (['uncertain','attempting'].includes(record.status) ? ' warn' : record.status === 'not_started' ? ' bad' : ''); badge.textContent = statuses[record.status] || record.status || 'Desconhecido'; result.append(badge);
-    if (record.error) { const error = document.createElement('small'); error.textContent = record.error; result.append(error); }
+    const explanation=document.createElement('small');explanation.textContent=deliveryExplanation(record.status);result.append(explanation);
+    if (record.error) { const error = document.createElement('small'); error.textContent = 'Motivo registrado: '+record.error; result.append(error); }
     const confirmation = cell(fmt(record.confirmedAt)); if (record.messageId) { const id = document.createElement('small'); id.textContent = 'ID ' + record.messageId; confirmation.append(id); }
     $('history-body').append(row);
   }
@@ -142,9 +151,9 @@ $('login-form').onsubmit = async event => { event.preventDefault(); const button
 $('refresh').onclick = () => action(async () => { await refresh(); await pollWhatsApp(); toast('Estado atualizado.'); });
 $('logout').onclick = () => action(async () => { await api('logout','POST',{}); loggedIn(false); });
 $('toggle-enabled').onclick = () => action(async () => { const enabled = !dashboard.config.sendingEnabled; $('toggle-enabled').disabled = true; try { await api('enabled','POST',{ enabled, revision: dashboard.revision }); await refresh(); toast(enabled ? 'Envios automáticos ativados.' : 'Próximos envios automáticos desativados.'); } finally { $('toggle-enabled').disabled = !$('connection-warning').hidden; } });
-$('settings-form').oninput = () => { dirty = true; };
+$('settings-form').oninput = () => { dirty = true; editGeneration++; };
 $('form-reload').onclick = () => action(async () => { if (!window.confirm('Descartar as alterações não salvas e carregar os campos atuais do servidor?')) return; await refresh(true); dirty = false; toast('Campos atuais carregados.'); });
-$('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); dirty = false; await refresh(true); toast('Agendamento e mensagem salvos.'); }); };
+$('settings-form').onsubmit = event => { event.preventDefault(); action(async () => { const generation=editGeneration; const [hour, minute] = $('schedule-time').value.split(':').map(Number); await save({ studentLines: $('student-lines').value.split('\n').filter(x => x.trim()), schedule: { hour, minute, graceMinutes: Number($('grace').value), weekdays: [...document.querySelectorAll('.day-picker input:checked')].map(x => x.value) } }, formRevision); if(editGeneration===generation) { dirty = false; render(dashboard,true); toast('Agendamento e mensagem salvos.'); } else { formConfig=JSON.parse(JSON.stringify(dashboard.config)); formRevision=dashboard.revision; $('form-conflict').hidden=true; toast('Alterações enviadas foram salvas. Sua edição posterior permanece no formulário e ainda precisa ser salva.'); } }); };
 $('pause-form').onsubmit = event => { event.preventDefault(); action(async () => { await save({ pausedDates: [...dashboard.config.pausedDates, $('pause-date').value] }); event.target.reset(); toast('Data pausada.'); }); };
 $('test-open').onclick = () => action(async () => { const p = await api('test/prepare','POST',{}); challenge = p.challenge; $('confirm-group').textContent = p.group+(p.groupId?' ('+p.groupId+')':' (seleção por nome)'); $('confirm-text').textContent = p.text; $('test-confirm').disabled = false; $('test-dialog').showModal(); });
 $('test-confirm').onclick = () => action(async () => { $('test-confirm').disabled = true; try { const job = await api('test/send','POST',{challenge}); $('test-dialog').close(); $('test-open').disabled = true; $('test-status').textContent = 'Teste em andamento. Aguarde a confirmação; não repita o comando.'; const deadline = Date.now() + 150000; while (Date.now() < deadline && csrf) { await new Promise(r => setTimeout(r, 2500)); const result = await api('test/' + job.id); if (result.status !== 'running') { const ok = ['sent','server_accepted'].includes(result.status); $('test-status').textContent = ok ? 'Confirmado pelo servidor do WhatsApp.' : (result.error || 'Resultado incerto. Confira o WhatsApp antes de repetir.'); toast($('test-status').textContent, !ok); await refresh(); return; } } $('test-status').textContent = 'Ainda sem resultado conclusivo. Confira o histórico antes de repetir.'; } finally { $('test-open').disabled = false; $('test-confirm').disabled = false; } });
