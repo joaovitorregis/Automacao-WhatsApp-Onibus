@@ -55,4 +55,4 @@ Para o executor, não há atualização automática transacional. Planeje uma ja
 
 Guarde código/commit, configuração, registro de entregas, autenticação socket e credencial do painel em armazenamento privado protegido. Uma cópia feita durante gravação pode ser inconsistente; obtenha um snapshot com processos escritores parados numa janela de manutenção. Não publique backups no GitHub.
 
-Não foi comprovada restauração integral nem retomada após reinicialização nesta documentação. Não reinicie um servidor ativo só para testar. A validação deve ser planejada, com acompanhamento do acesso, heartbeat, supervisor e próximo envio autorizado.
+A retomada após reinicialização e desbloqueio, assim como a restauração da aplicação em pasta isolada, foram [validadas em 03/10/2026](validacao-recuperacao.md). Não foi validada recuperação integral do Android após reset. Não reinicie um servidor ativo só para testar. A validação deve ser planejada, com acompanhamento do acesso, heartbeat, supervisor e próximo envio autorizado. Veja [procedimentos e limites do backup](backup.md).

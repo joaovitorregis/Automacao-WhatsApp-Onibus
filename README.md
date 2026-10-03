@@ -14,6 +14,8 @@ Aplicação pessoal implantada em Android/Termux, com painel privado e testes em
 - [Painel e comandos do notebook](docs/painel-rota.md)
 - [Diagnóstico e incidentes](docs/operacao.md)
 - [Arquitetura e decisões](docs/arquitetura.md)
+- [Backup e restauração](docs/backup.md)
+- [Validação real de recuperação](docs/validacao-recuperacao.md)
 - [Contribuição e critérios de entrega](CONTRIBUTING.md)
 
 ## Um celular como servidor
@@ -80,7 +82,7 @@ Veja [configuração e uso do painel](docs/painel-rota.md). O painel exige login
 
 ## Limites
 
-O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. Não há registro de validação da retomada automática após reinicialização. A integração depende da compatibilidade do conector com o WhatsApp.
+O funcionamento depende de conexão, energia e permissão para executar o Termux em segundo plano. O Android pode encerrar o processo. A retomada após reinício real, com desbloqueio da tela, e a restauração isolada de backup foram [validadas no A10s em 03/10/2026](docs/validacao-recuperacao.md). Isso não comprova recuperação antes do primeiro desbloqueio, após reset de fábrica ou em outro aparelho. A integração depende da compatibilidade do conector com o WhatsApp.
 
 A configuração pessoal, a sessão do WhatsApp e os registros de operação ficam fora do repositório. Cada instalação requer a configuração dos grupos e participantes e a vinculação de uma conta do WhatsApp.
 
