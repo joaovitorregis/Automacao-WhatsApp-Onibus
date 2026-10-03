@@ -24,7 +24,7 @@ test('interface avoids redundant infrastructure and introductory copy',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../panel/public/index.html'),'utf8');
   for(const text of ['Rede privada','Painel privado','Painel de controle','Tailscale','Acesse os horários','Acompanhe a programação','Data preenchida automaticamente']) assert.ok(!html.includes(text),text);
   assert.ok(html.includes('id="connection-warning"'));
-  assert.ok(html.includes('Mensagem real'));
+  assert.ok(html.includes('Enviar mensagem de teste?'));
   assert.ok(html.includes('confira o WhatsApp antes de repetir'));
 });
 
@@ -286,7 +286,7 @@ test('history explains uncertainty, interrupted attempts and confirmation limits
   assert.match(explain('server_accepted'),/não comprova leitura/);
   assert.match(explain('uncertain'),/não repete/);
   assert.match(explain('attempting'),/interrupção/);
-  assert.match(explain('not_started'),/outras tentativas/);
+  assert.match(explain('not_started'),/outras tentativas/i);
   assert.match(explain('unexpected'),/não comprova entrega/);
 });
 test('UI surfaces intersecting server changes and explicitly recovers the form',async()=>{

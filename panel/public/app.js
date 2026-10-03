@@ -5,10 +5,10 @@ let editGeneration=0;
 const fmt = value => value ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Fortaleza', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
 const dateFmt = value => value.split('-').reverse().join('/');
 function deliveryExplanation(status) {
-  if(['sent','server_accepted'].includes(status)) return 'O servidor do WhatsApp confirmou o envio; isso não comprova leitura pelos participantes.';
-  if(status==='uncertain') return 'Não há confirmação conclusiva. Confira a conversa antes de qualquer novo envio; a automação não repete esta tentativa.';
-  if(status==='attempting') return 'Tentativa registrada, ainda sem confirmação. Este registro também pode indicar interrupção; confira a conversa antes de repetir.';
-  if(status==='not_started') return 'Esta tentativa não iniciou o envio. Confira o motivo registrado; isto não comprova que outras tentativas não enviaram.';
+  if(['sent','server_accepted'].includes(status)) return 'O WhatsApp confirmou o envio. Isso não comprova leitura.';
+  if(status==='uncertain') return 'Sem confirmação. Confira a conversa antes de reenviar. A automação não repete esta tentativa.';
+  if(status==='attempting') return 'Sem confirmação; pode ter ocorrido uma interrupção. Confira a conversa antes de repetir.';
+  if(status==='not_started') return 'Esta tentativa não enviou. Outras tentativas podem ter enviado; confira o motivo e a conversa.';
   return 'Estado não reconhecido. Este registro não comprova entrega.';
 }
 function toast(message, error = false) { $('toast').textContent = message; $('toast').classList.toggle('error', error); $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 6500); }
