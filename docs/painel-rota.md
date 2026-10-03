@@ -4,7 +4,7 @@ Interface para controlar uma instalação já existente da automação no Termux
 
 ## Segurança e configuração
 
-O código publicado não contém endereço do servidor, senha real, participantes reais ou sessão WhatsApp. O backend escuta `127.0.0.1:8787` por padrão. Para acessar a partir do notebook, configure `PANEL_HOST` com o IP privado do seu servidor no arquivo `panel/run.sh`. O supervisor executa esse arquivo; configurar a variável apenas em um terminal não altera o ambiente do serviço existente.
+O código publicado não contém endereço do servidor, senha real, participantes reais ou sessão WhatsApp. O backend escuta `127.0.0.1:8787` por padrão. Na instalação pelo notebook, `ROTA_PANEL_URL` fornece o endereço privado e a porta gravados no script de serviço. Na instalação manual, configure `PANEL_HOST` e `PANEL_PORT` em `panel/run.sh`. Variáveis definidas apenas num terminal não alteram um serviço existente.
 
 Não use `0.0.0.0` nem exponha a porta no roteador. O HTTP deve ficar restrito a um transporte privado protegido, por exemplo Tailscale. Não foi implementado acesso público, HTTPS direto ou recuperação automática de senha.
 
@@ -39,7 +39,7 @@ $env:ROTA_PANEL_URL = 'http://ip-privado-do-servidor:8787'
 .\painel.ps1 -Action Open
 ```
 
-O instalador pressupõe a automação funcionando em `~/whatsapp-onibus-rota-1-android`, com runit, flock, Node.js e dependências socket instalados. Faz upload para uma área de preparação, executa testes sem envio real, guarda backup e instala o painel e os adaptadores de conexão/grupos/teste. Agenda e estado dos envios são preservados. O script não configura sozinho o IP privado: ajuste `panel/run.sh` antes de instalar.
+O instalador pressupõe a automação funcionando em `~/whatsapp-onibus-rota-1-android`, com runit, flock, Node.js e dependências socket instalados. Faz upload para uma área de preparação, executa testes sem envio real, guarda backup e instala o painel e os adaptadores de conexão/grupos/teste. Agenda e estado dos envios são preservados. `ROTA_PANEL_URL` é obrigatória na instalação; o endereço é gravado explicitamente no serviço, e a resposta HTTP é conferida ao terminar.
 
 Os testes remotos usam a biblioteca e a política já instaladas no servidor. Antes de substituir arquivos, o instalador compara seus hashes com os da área de testes e cancela se houver diferença. Não atualiza essas dependências silenciosamente.
 
